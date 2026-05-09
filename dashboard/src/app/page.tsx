@@ -77,6 +77,7 @@ export default function DashboardPage() {
     setIsRetrying(false);
   };
 
+  const fetchSessions = async () => {
     try {
       let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
       
