@@ -20,7 +20,7 @@ export default function SessionsListPage() {
     fetchSessions();
     const socket = getSocket();
 
-    socket.on('whatsapp:status', (data) => {
+    socket.on('whatsapp:status', (data: any) => {
       setSessions(prev => prev.map(s => 
         s.sessionId === data.sessionId ? { ...s, status: data.status } : s
       ));

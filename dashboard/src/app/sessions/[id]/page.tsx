@@ -34,7 +34,7 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
 
     fetchStatus();
 
-    socket.on('whatsapp:qr', (data) => {
+    socket.on('whatsapp:qr', (data: any) => {
       if (data.sessionId === sessionId) {
         setQr(data.qr);
         setStatus('QR_READY');
@@ -42,7 +42,7 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
       }
     });
 
-    socket.on('whatsapp:ready', (data) => {
+    socket.on('whatsapp:ready', (data: any) => {
       if (data.sessionId === sessionId) {
         setQr(null);
         setStatus('READY');
@@ -50,14 +50,14 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
       }
     });
 
-    socket.on('whatsapp:authenticated', (data) => {
+    socket.on('whatsapp:authenticated', (data: any) => {
       if (data.sessionId === sessionId) {
         setStatus('AUTHENTICATED');
         addLog('Authenticated successfully.');
       }
     });
 
-    socket.on('whatsapp:disconnected', (data) => {
+    socket.on('whatsapp:disconnected', (data: any) => {
       if (data.sessionId === sessionId) {
         setStatus('DISCONNECTED');
         addLog(`Disconnected: ${data.reason}`);

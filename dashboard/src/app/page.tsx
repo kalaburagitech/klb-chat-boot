@@ -45,20 +45,20 @@ export default function DashboardPage() {
     // Join the organization room
     socket.emit('join:org', 'klb-connect');
 
-    socket.on('whatsapp:status', (data) => {
+    socket.on('whatsapp:status', (data: any) => {
       setSessions(prev => prev.map(s => 
         s.sessionId === data.sessionId ? { ...s, status: data.status } : s
       ));
       fetchStats(); 
     });
 
-    socket.on('whatsapp:ready', (data) => {
+    socket.on('whatsapp:ready', (data: any) => {
       setSessions(prev => prev.map(s => 
         s.sessionId === data.sessionId ? { ...s, status: 'READY' } : s
       ));
     });
 
-    socket.on('whatsapp:deleted', (data) => {
+    socket.on('whatsapp:deleted', (data: any) => {
       setSessions(prev => prev.filter(s => s.sessionId !== data.sessionId));
       fetchStats();
     });
