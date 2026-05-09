@@ -1,0 +1,23 @@
+# KLB Connect WhatsApp SaaS - Run Guide
+
+## Prerequisites
+- Node.js installed
+- MongoDB (Railway or Atlas)
+- Redis (Railway or Redis Cloud)
+
+## 1. Backend Setup
+1. Open a terminal in `d:\klb-chat-boot\backend`.
+2. Ensure `.env` exists (copied from `.env.example`).
+3. Run: `npm install`
+4. Run: `npm run dev`
+
+## 2. Dashboard (Frontend) Setup
+1. Open a terminal in `d:\klb-chat-boot\dashboard`.
+2. Ensure `.env.local` exists (copied from `.env.example`).
+3. Run: `npm install`
+4. Run: `npm run dev`
+
+## 3. Infrastructure (Local Optional)
+If running locally without Railway:
+1. Ensure Docker is running.
+2. In the root directory (`d:\klb-chat-boot`), run: `docker-compose up -d`
