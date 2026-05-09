@@ -1,5 +1,5 @@
-# Use Node.js LTS
-FROM node:18-slim
+# Use Node.js LTS (Version 20 provides global crypto support)
+FROM node:20-slim
 
 # Install dependencies for Puppeteer/WhatsApp-Web.js
 RUN apt-get update && apt-get install -y \
