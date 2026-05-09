@@ -18,7 +18,14 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
     // Fetch initial status
     const fetchStatus = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005'}/api/whatsapp/sessions/klb-connect`);
+        let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+        if (!backendUrl && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+          backendUrl = 'https://klb-chat-boot-production.up.railway.app';
+        }
+
+        backendUrl = backendUrl || 'http://localhost:4005';
+        const res = await fetch(`${backendUrl}/api/whatsapp/sessions/klb-connect`);
         const sessions = await res.json();
         const session = sessions.find((s: any) => s.sessionId === sessionId);
         if (session) {
