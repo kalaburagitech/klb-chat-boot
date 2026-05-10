@@ -15,7 +15,7 @@ export class ClientFactory {
         remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
       },
       puppeteer: {
-        headless: true,
+        headless: 'new',
         executablePath: process.env.CHROME_PATH || undefined,
         defaultViewport: { width: 1280, height: 800 },
         args: [
@@ -27,11 +27,12 @@ export class ClientFactory {
           '--no-first-run',
           '--disable-extensions',
           '--disable-software-rasterizer',
-          '--disable-web-security'
+          '--disable-web-security',
+          '--disable-blink-features=AutomationControlled'
         ],
         protocolTimeout: 0,
       },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
     });
   }
 }
