@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, use } from 'react';
+import React, { useEffect, useState, use, useCallback } from 'react';
 import { getSocket } from '@/utils/socket';
 import Link from 'next/link';
 
@@ -13,40 +13,46 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
   const [error, setError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
+  const addLog = useCallback((msg: string) => {
+    setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50));
+  }, []);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005';
+      if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+        backendUrl = 'https://klb-chat-boot-production.up.railway.app';
+      }
+      
+      const res = await fetch(`${backendUrl}/api/whatsapp/sessions/klb-connect`);
+      const sessions = await res.json();
+      const session = sessions.find((s: any) => s.sessionId === id);
+      
+      if (session) {
+        setStatus(session.status);
+        if (session.status === 'READY') {
+          addLog('Session is READY.');
+          setQr(null);
+        } else if (session.status === 'FAILED') {
+          setError(session.error || 'Connection failed');
+        }
+      }
+
+      // Re-trigger init if it's not active in memory but marked as QR_READY or FAILED
+      await fetch(`${backendUrl}/api/whatsapp/sessions/${id}/init`, {
+        method: 'POST'
+      });
+      
+    } catch (err) {
+      console.error('Failed to sync status:', err);
+    }
+  }, [id, addLog]);
+
   useEffect(() => {
     const socket = getSocket();
     const sessionId = id;
     const orgId = 'klb-connect'; 
     socket.emit('join:org', orgId);
-
-    const fetchStatus = async () => {
-      try {
-        let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005';
-
-        if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-          backendUrl = 'https://klb-chat-boot-production.up.railway.app';
-        }
-        
-        const res = await fetch(`${backendUrl}/api/whatsapp/sessions/klb-connect`);
-        const sessions = await res.json();
-        const session = sessions.find((s: any) => s.sessionId === sessionId);
-        
-        if (session) {
-          setStatus(session.status);
-          if (session.status === 'READY') {
-            addLog('Session restored: WhatsApp is ready.');
-          }
-        }
-
-        await fetch(`${backendUrl}/api/whatsapp/sessions/${sessionId}/init`, {
-          method: 'POST'
-        });
-        addLog('Requesting session initialization...');
-        
-      } catch (err) {
-        console.error('Failed to fetch initial status:', err);
-      }
-    };
 
     fetchStatus();
 
@@ -59,11 +65,19 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
       }
     });
 
+    socket.on('whatsapp:authenticated', (data: any) => {
+      if (data.sessionId === sessionId) {
+        setStatus('AUTHENTICATED');
+        setQr(null);
+        addLog('Authenticated! Preparing session...');
+      }
+    });
+
     socket.on('whatsapp:ready', (data: any) => {
       if (data.sessionId === sessionId) {
         setQr(null);
         setStatus('READY');
-        addLog('WhatsApp session is ready and connected!');
+        addLog('WhatsApp session is READY!');
       }
     });
 
@@ -91,15 +105,12 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
     return () => {
       socket.off('whatsapp:qr');
       socket.off('whatsapp:ready');
+      socket.off('whatsapp:authenticated');
       socket.off('whatsapp:status');
       socket.off('whatsapp:disconnected');
       clearInterval(timer);
     };
-  }, [id]);
-
-  const addLog = (msg: string) => {
-    setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50));
-  };
+  }, [id, fetchStatus, addLog]);
 
   const retryInit = async () => {
     setStatus('INITIALIZING');
@@ -148,9 +159,10 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
         <div className="header-main">
-          <div className="title-section">
+          <div className="title-section" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: 0 }}>Session: {id}</h1>
             <span className={`badge ${status === 'READY' ? 'badge-success' : status === 'FAILED' ? 'badge-danger' : 'badge-warning'}`}>{status}</span>
+            <button onClick={fetchStatus} className="btn-sync" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-muted)', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer' }}>↻ Sync Status</button>
           </div>
           <p style={{ color: 'var(--text-muted)', margin: '8px 0 0' }}>Manage your enterprise WhatsApp connection and automation.</p>
         </div>
@@ -172,6 +184,14 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
                   {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
                 </span>
               </div>
+            </div>
+          ) : status === 'AUTHENTICATED' ? (
+            <div className="connected-section">
+              <div className="success-icon-wrapper" style={{ background: '#34b7f1', boxShadow: '0 0 30px rgba(52, 183, 241, 0.4)' }}>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+              </div>
+              <h2 style={{ marginBottom: '12px' }}>Authenticated!</h2>
+              <p style={{ color: 'var(--text-muted)', maxWidth: '400px', margin: '0 auto' }}>Setting up your WhatsApp environment. This may take up to 30 seconds for large accounts...</p>
             </div>
           ) : status === 'READY' ? (
             <div className="connected-section">
@@ -220,7 +240,6 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
         .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .back-link { color: var(--primary); text-decoration: none; font-size: 0.875rem; font-weight: 500; }
         .header-main { display: flex; flex-direction: column; }
-        .title-section { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
         .details-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
         @media (min-width: 1024px) { .details-grid { grid-template-columns: 1fr 400px; } }
         .status-card { padding: 32px; min-height: 480px; display: flex; flex-direction: column; }

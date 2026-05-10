@@ -87,14 +87,15 @@ export class SessionManager {
     });
 
     client.on('authenticated', () => {
-      console.log(`Session ${sessionId} authenticated`);
+      console.log(`🔓 Session ${sessionId} AUTHENTICATED successfully. Waiting for ready...`);
       this.qrCodes.delete(sessionId);
       this.updateSessionStatus(sessionId, SessionStatus.AUTHENTICATED);
       this.io?.to(orgSlug).emit('whatsapp:status', { sessionId, status: SessionStatus.AUTHENTICATED });
+      this.io?.to(orgSlug).emit('whatsapp:authenticated', { sessionId });
     });
 
     client.on('ready', () => {
-      console.log(`Session ${sessionId} ready`);
+      console.log(`✅ Session ${sessionId} is READY and CONNECTED`);
       this.qrCodes.delete(sessionId);
       this.updateSessionStatus(sessionId, SessionStatus.READY);
       this.io?.to(orgSlug).emit('whatsapp:status', { sessionId, status: SessionStatus.READY });
