@@ -96,7 +96,10 @@ export class SessionManager {
     });
 
     client.on('ready', () => {
-      console.log(`✅ Session ${sessionId} is READY and CONNECTED`);
+      console.log('=========================================');
+      console.log(`🚀 ✅ WHATSAPP IS READY: ${sessionId}`);
+      console.log(`📱 CONNECTED AND LISTENING FOR MESSAGES`);
+      console.log('=========================================');
       this.qrCodes.delete(sessionId);
       this.updateSessionStatus(sessionId, SessionStatus.READY);
       this.io?.to(orgSlug).emit('whatsapp:status', { sessionId, status: SessionStatus.READY });
