@@ -125,10 +125,29 @@ export class SessionManager {
     client.on('message', async (message) => {
       console.log(`📩 [WHATSAPP] New message from ${message.from}: "${message.body}"`);
       
+      const cleanBody = message.body.toLowerCase().trim();
+
+      // FORCE-REPLY TEST (Bypass all logic)
+      if (cleanBody === 'hi' || cleanBody === 'hello') {
+        console.log('🚀 [FORCE] Sending immediate greeting...');
+        try {
+          await client.sendMessage(message.from, '👋 *Hello from KLB Bot!* I am receiving your messages. How can I help you today?');
+          console.log('✅ [FORCE] Greeting sent successfully.');
+          return;
+        } catch (err) {
+          console.error('❌ [FORCE] Failed to send greeting:', err);
+        }
+      }
+
       // DIAGNOSTIC PING
-      if (message.body.toLowerCase().trim() === '!ping') {
+      if (cleanBody === '!ping') {
         console.log('🏓 [WHATSAPP] Ping received, sending Pong...');
-        return client.sendMessage(message.from, '🏓 *Pong!* Your connection is ALIVE and ACTIVE. 🚀');
+        try {
+          await client.sendMessage(message.from, '🏓 *Pong!* Your connection is ALIVE and ACTIVE. 🚀');
+          return;
+        } catch (err) {
+          console.error('❌ [DIAGNOSTIC] Failed to send Pong:', err);
+        }
       }
 
       this.io?.to(orgSlug).emit('whatsapp:message', { 
