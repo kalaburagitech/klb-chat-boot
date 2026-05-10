@@ -123,30 +123,20 @@ export class SessionManager {
     client.on('message_create', async (message) => {
       if (message.fromMe) return; 
       
-      const cleanBody = message.body.toLowerCase().trim();
-      console.log(`📩 [RELIABLE] Message: "${message.body}" from ${message.from}`);
+      console.log(`📩 [WHATSAPP] New message from ${message.from}: "${message.body}"`);
 
-      // FORCE-REPLY TEST
-      if (cleanBody === 'hi' || cleanBody === 'hello') {
-        try {
-          await client.sendMessage(message.from, '👋 *Hello!* System is ACTIVE and RELIABLE now. 🚀');
-          return;
-        } catch (err) {}
-      }
+      // 1. Emit to Dashboard
+      this.io?.to(orgSlug).emit('whatsapp:message', { 
+        sessionId, 
+        from: message.from, 
+        body: message.body 
+      });
 
-      // DIAGNOSTIC PING
-      if (cleanBody === '!ping') {
-        try {
-          await client.sendMessage(message.from, '🏓 *Pong!* Your connection is ALIVE. 🚀');
-          return;
-        } catch (err) {}
-      }
-
-      // Route to Chatbot Engine
+      // 2. Process via Chatbot Engine
       try {
         await ChatbotEngine.processIncoming(orgSlug, sessionId, message.from, message.body);
       } catch (err) {
-        console.error('❌ Error processing message:', err);
+        console.error('❌ Error in ChatbotEngine:', err);
       }
     });
   }

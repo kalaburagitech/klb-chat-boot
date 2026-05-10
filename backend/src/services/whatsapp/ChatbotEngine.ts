@@ -108,8 +108,9 @@ export class ChatbotEngine {
     
     const triggeredFlow = rootFlows.find(f => {
       const match = f.triggerKeywords.some(kw => {
-        const isMatch = text === kw.toLowerCase().trim();
-        if (isMatch) console.log(`[BOT] 🎯 Keyword Match: "${text}" === "${kw}"`);
+        const normalizedKw = kw.toLowerCase().trim();
+        const isMatch = text === normalizedKw || text.includes(normalizedKw);
+        if (isMatch) console.log(`[BOT] 🎯 Match Found: "${text}" matches "${normalizedKw}"`);
         return isMatch;
       });
       return match;
