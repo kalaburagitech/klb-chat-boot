@@ -2,6 +2,7 @@ import { Client } from 'whatsapp-web.js';
 import { ClientFactory } from './ClientFactory';
 import WhatsAppSession, { SessionStatus } from '../../models/WhatsAppSession';
 import { Server } from 'socket.io';
+import { ChatbotEngine } from './ChatbotEngine';
 import QRCode from 'qrcode';
 import { enqueueIncoming } from '../queue/MessageQueue';
 
