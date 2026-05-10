@@ -52,7 +52,7 @@ const io = new Server(server, {
   }
 });
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 4005;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/klb-whatsapp';
 
 // Middleware
@@ -103,17 +103,19 @@ mongoose.connect(MONGODB_URI, mongooseOptions)
     // Seed initial flows
     await SeedService.seedKlbFlows();
 
-    // Start active sessions in background
-    console.log('Starting session initialization in background...');
-    sessionManager.initAllSessions()
-      .then(() => console.log('All sessions initialized in background.'))
-      .catch(err => console.error('Error in background session initialization:', err));
-
+    // Start Server Instantly (To satisfy Railway Health Check)
     server.listen(Number(PORT), '0.0.0.0', () => {
       console.log('=========================================');
       console.log(`🚀 KLB BACKEND RUNNING ON PORT: ${PORT}`);
       console.log(`📡 CORS ORIGIN: ${process.env.DASHBOARD_URL || '*'}`);
       console.log('=========================================');
+      
+      // Start heavy sessions in background AFTER server is listening
+      console.log('Starting session initialization in background...');
+      sessionManager.initAllSessions()
+        .then(() => console.log('✅ All sessions initialized in background.'))
+        .catch(err => console.error('❌ Error in background session initialization:', err));
+        
     }).on('error', (err: any) => {
       if (err.code === 'EADDRINUSE') {
         console.error(`❌ PORT ${PORT} IS ALREADY IN USE. PLEASE KILL THE PROCESS.`);
