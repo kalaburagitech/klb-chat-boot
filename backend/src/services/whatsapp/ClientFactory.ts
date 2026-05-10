@@ -29,6 +29,7 @@ export class ClientFactory {
       authTimeoutMs: 60000,
       puppeteer: {
         headless: true,
+        executablePath: process.env.CHROME_PATH || undefined, // Use CHROME_PATH on Railway if needed
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -36,6 +37,7 @@ export class ClientFactory {
           '--disable-gpu',
           '--no-zygote',
           '--no-first-run',
+          '--disable-extensions'
         ],
         protocolTimeout: 0,
       },

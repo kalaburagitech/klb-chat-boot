@@ -106,7 +106,7 @@ router.delete('/sessions/:sessionId', async (req, res) => {
 });
 
 // Initialize an existing session
-router.get('/sessions/:sessionId/init', async (req, res) => {
+router.post('/sessions/:sessionId/init', async (req, res) => {
   try {
     const { sessionId } = req.params;
     const session = await WhatsAppSession.findOne({ sessionId });

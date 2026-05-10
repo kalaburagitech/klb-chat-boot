@@ -138,7 +138,8 @@ export default function DashboardPage() {
     if (!name) return;
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005'}/api/whatsapp/sessions/create`, {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005';
+      const res = await fetch(`${backendUrl}/api/whatsapp/sessions/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -162,10 +163,10 @@ export default function DashboardPage() {
     if (!sessionToDelete) return;
 
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005'}/api/whatsapp/sessions/${sessionToDelete.id}`, {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005';
+      await fetch(`${backendUrl}/api/whatsapp/sessions/${sessionToDelete.id}`, {
         method: 'DELETE',
       });
-      // Real-time update will be handled by socket event, but we can optimistically update here too
       setSessions(prev => prev.filter(s => s.sessionId !== sessionToDelete.id));
       setIsDeleteModalOpen(false);
       setSessionToDelete(null);
@@ -180,24 +181,29 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="animate-fade-in">
-      <header style={{ marginBottom: '40px' }}>
-        <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '8px' }}>Enterprise Overview</h1>
-        <p style={{ color: 'var(--text-muted)' }}>Welcome back, Admin. Here is your platform status.</p>
+    <div className="animate-fade-in dashboard-page">
+      <header className="dashboard-header">
+        <div>
+          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '8px' }}>Enterprise Overview</h1>
+          <p style={{ color: 'var(--text-muted)' }}>Welcome back, Admin. Here is your platform status.</p>
+        </div>
       </header>
 
       {error && (
-        <div className="glass-card" style={{ 
+        <div className="glass-card error-banner" style={{ 
           border: '1px solid #ef4444', 
           backgroundColor: 'rgba(239, 68, 68, 0.1)',
           marginBottom: '32px',
+          padding: '20px',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '16px'
         }}>
           <div>
             <h3 style={{ color: '#ef4444', marginBottom: '4px' }}>Connection Error</h3>
-            <p style={{ fontSize: '0.875rem' }}>{error}. Check if backend is running on port 4005.</p>
+            <p style={{ fontSize: '0.875rem' }}>{error}. Check if backend is running.</p>
           </div>
           <button 
             className="btn-primary" 
@@ -210,9 +216,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid" style={{ marginBottom: '48px' }}>
+      <div className="stats-grid">
         {stats.map((stat, i) => (
-          <div key={i} className="glass-card">
+          <div key={i} className="glass-card stat-card">
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '8px' }}>{stat.label}</p>
             <h3 style={{ fontSize: '2rem', fontWeight: 700, color: stat.color }}>{stat.value}</h3>
           </div>
@@ -220,15 +226,15 @@ export default function DashboardPage() {
       </div>
 
       <section>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Active WhatsApp Sessions</h2>
           <button className="btn-primary" onClick={addSession}>+ Add New Session</button>
         </div>
 
         {loading ? (
-          <p>Loading sessions...</p>
+          <div className="glass-card" style={{ padding: '40px', textAlign: 'center' }}>Loading sessions...</div>
         ) : (
-          <div className="grid">
+          <div className="sessions-grid">
             {sessions.map((session) => (
               <SessionCard 
                 key={session._id}
@@ -238,7 +244,9 @@ export default function DashboardPage() {
               />
             ))}
             {sessions.length === 0 && (
-              <p style={{ color: 'var(--text-muted)' }}>No sessions found. Add one to get started.</p>
+              <div className="glass-card" style={{ padding: '40px', textAlign: 'center' }}>
+                <p style={{ color: 'var(--text-muted)' }}>No sessions found. Add one to get started.</p>
+              </div>
             )}
           </div>
         )}
@@ -256,6 +264,47 @@ export default function DashboardPage() {
         onConfirm={deleteSession}
         sessionName={sessionToDelete?.name || ''}
       />
+
+      <style jsx>{`
+        .dashboard-page {
+          padding-bottom: 40px;
+        }
+        .dashboard-header {
+          margin-bottom: 40px;
+        }
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(1, 1fr);
+          gap: 20px;
+          margin-bottom: 48px;
+        }
+        .sessions-grid {
+          display: grid;
+          grid-template-columns: repeat(1, 1fr);
+          gap: 20px;
+        }
+        
+        @media (min-width: 640px) {
+          .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        
+        @media (min-width: 1024px) {
+          .stats-grid {
+            grid-template-columns: repeat(4, 1fr);
+          }
+          .sessions-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        
+        @media (min-width: 1280px) {
+          .sessions-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -263,9 +312,10 @@ export default function DashboardPage() {
 function SessionCard({ session, onScan, onDelete }: { session: Session, onScan: () => void, onDelete: () => void }) {
   const { name, sessionId, status, phoneNumber } = session;
   const statusClass = status === 'READY' ? 'badge-success' : status === 'QR_READY' ? 'badge-warning' : 'badge-danger';
+  const [showDropdown, setShowDropdown] = useState(false);
   
   return (
-    <div className="glass-card">
+    <div className="glass-card session-card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
         <div>
           <h3 style={{ fontWeight: 600, marginBottom: '4px' }}>{name}</h3>
@@ -273,24 +323,42 @@ function SessionCard({ session, onScan, onDelete }: { session: Session, onScan: 
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <span className={`badge ${statusClass}`}>{status}</span>
-          <button 
-            onClick={onDelete}
-            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem', padding: '0 4px' }}
-            title="Delete Session"
-          >
-            &times;
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button 
+              onClick={() => setShowDropdown(!showDropdown)}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', padding: '0 4px' }}
+            >
+              ⋮
+            </button>
+            {showDropdown && (
+              <>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} onClick={() => setShowDropdown(false)}></div>
+                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '8px', background: '#1e293b', border: '1px solid var(--border)', borderRadius: '8px', padding: '4px', zIndex: 101, minWidth: '140px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }}>
+                  <button 
+                    onClick={() => { onDelete(); setShowDropdown(false); }}
+                    style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', borderRadius: '4px', fontSize: '0.875rem' }}
+                  >
+                    Delete Session
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
-      <p style={{ fontSize: '0.875rem', marginBottom: '20px' }}>{phoneNumber || 'Scanning required...'}</p>
-      <div style={{ display: 'flex', gap: '12px' }}>
+      
+      <div style={{ flex: 1 }}>
+        <p style={{ fontSize: '0.875rem', marginBottom: '20px' }}>{phoneNumber || 'Scanning required...'}</p>
+      </div>
+
+      <div style={{ display: 'flex', gap: '12px', marginTop: 'auto' }}>
         <Link href={`/sessions/${sessionId}`} style={{ flex: 1 }}>
-          <button style={{ width: '100%', padding: '8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-main)', cursor: 'pointer' }}>Manage</button>
+          <button style={{ width: '100%', padding: '8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-main)', cursor: 'pointer', fontSize: '0.875rem' }}>Manage</button>
         </Link>
         {status === 'QR_READY' && (
           <button 
             onClick={onScan}
-            style={{ flex: 1, padding: '8px', background: 'var(--primary)', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer' }}
+            style={{ flex: 1, padding: '8px', background: 'var(--primary)', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '0.875rem' }}
           >
             Scan QR
           </button>

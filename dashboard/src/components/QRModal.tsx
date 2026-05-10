@@ -12,6 +12,7 @@ interface QRModalProps {
 export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
   const [qr, setQr] = useState<string | null>(null);
   const [status, setStatus] = useState<'LOADING' | 'QR' | 'WAITING_FOR_SCAN' | 'CONNECTED' | 'FAILED'>('LOADING');
+  const [timeLeft, setTimeLeft] = useState(60);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -22,13 +23,16 @@ export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
     setStatus('LOADING');
 
     // Trigger session initialization on backend
-    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005'}/api/whatsapp/sessions/${sessionId}/init`)
+    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005'}/api/whatsapp/sessions/${sessionId}/init`, {
+      method: 'POST'
+    })
       .catch(err => console.error('Failed to trigger session init:', err));
 
     const handleQr = (data: { sessionId: string; qr: string }) => {
       if (data.sessionId === sessionId) {
         setQr(data.qr);
         setStatus('QR');
+        setTimeLeft(60); // Reset timer on new QR
         setTimeout(() => setStatus('WAITING_FOR_SCAN'), 2000);
       }
     };
@@ -47,9 +51,14 @@ export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
     socket.on('whatsapp:qr', handleQr);
     socket.on('whatsapp:status', handleStatus);
 
+    const timer = setInterval(() => {
+      setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
     return () => {
       socket.off('whatsapp:qr', handleQr);
       socket.off('whatsapp:status', handleStatus);
+      clearInterval(timer);
     };
   }, [isOpen, sessionId, onClose]);
 
@@ -81,12 +90,18 @@ export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
               </div>
               
               <div style={{ textAlign: 'left', background: 'rgba(255,255,255,0.05)', padding: '20px', borderRadius: '12px', marginBottom: '24px' }}>
-                <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '0.875rem', lineHeight: '1.6', color: 'var(--text-muted)' }}>
+                <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '0.875rem', lineHeight: '1.6', color: 'var(--text-muted)', marginBottom: '16px' }}>
                   <li>Open <b>WhatsApp</b> on your phone</li>
                   <li>Tap <b>Menu</b> or <b>Settings</b> and select <b>Linked Devices</b></li>
                   <li>Tap on <b>Link a Device</b></li>
                   <li>Point your phone to this screen to capture the code</li>
                 </ol>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Code expires in:</span>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: timeLeft < 10 ? '#ef4444' : 'var(--primary)' }}>
+                    {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                  </span>
+                </div>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
