@@ -11,7 +11,7 @@ interface QRModalProps {
 
 export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
   const [qr, setQr] = useState<string | null>(null);
-  const [status, setStatus] = useState<'LOADING' | 'QR' | 'WAITING_FOR_SCAN' | 'CONNECTED' | 'FAILED'>('LOADING');
+  const [status, setStatus] = useState<'LOADING' | 'QR' | 'WAITING_FOR_SCAN' | 'AUTHENTICATING' | 'CONNECTED' | 'FAILED'>('LOADING');
   const [timeLeft, setTimeLeft] = useState(60);
 
   useEffect(() => {
@@ -42,14 +42,23 @@ export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
         if (data.status === 'READY') {
           setStatus('CONNECTED');
           setTimeout(onClose, 2000);
+        } else if (data.status === 'AUTHENTICATED') {
+          setStatus('AUTHENTICATING');
         } else if (data.status === 'FAILED') {
           setStatus('FAILED');
         }
       }
     };
 
+    const handleAuth = (data: { sessionId: string }) => {
+      if (data.sessionId === sessionId) {
+        setStatus('AUTHENTICATING');
+      }
+    };
+
     socket.on('whatsapp:qr', handleQr);
     socket.on('whatsapp:status', handleStatus);
+    socket.on('whatsapp:authenticated', handleAuth);
 
     const timer = setInterval(() => {
       setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
@@ -58,6 +67,7 @@ export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
     return () => {
       socket.off('whatsapp:qr', handleQr);
       socket.off('whatsapp:status', handleStatus);
+      socket.off('whatsapp:authenticated', handleAuth);
       clearInterval(timer);
     };
   }, [isOpen, sessionId, onClose]);
@@ -110,6 +120,15 @@ export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
                   {status === 'WAITING_FOR_SCAN' ? 'WAITING FOR SCAN...' : 'SYNCING WITH WHATSAPP...'}
                 </p>
               </div>
+            </div>
+          )}
+
+          {status === 'AUTHENTICATING' && (
+            <div className="animate-fade-in" style={{ padding: '40px 0' }}>
+              <div className="success-icon" style={{ background: '#34b7f1' }}>🔓</div>
+              <h3 style={{ color: '#34b7f1', fontWeight: 700, fontSize: '1.5rem', marginTop: '16px' }}>Connected!</h3>
+              <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>Authenticating and preparing your dashboard...</p>
+              <div className="spinner" style={{ marginTop: '24px', width: '24px', height: '24px', borderWidth: '2px' }}></div>
             </div>
           )}
 

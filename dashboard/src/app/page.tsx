@@ -63,10 +63,15 @@ export default function DashboardPage() {
       fetchStats();
     });
 
+    const pollInterval = setInterval(() => {
+      fetchSessions();
+    }, 10000);
+
     return () => {
       socket.off('whatsapp:status');
       socket.off('whatsapp:ready');
       socket.off('whatsapp:deleted');
+      clearInterval(pollInterval);
     };
   }, []);
 
@@ -311,7 +316,8 @@ export default function DashboardPage() {
 
 function SessionCard({ session, onScan, onDelete }: { session: Session, onScan: () => void, onDelete: () => void }) {
   const { name, sessionId, status, phoneNumber } = session;
-  const statusClass = status === 'READY' ? 'badge-success' : status === 'QR_READY' ? 'badge-warning' : 'badge-danger';
+  const statusClass = status === 'READY' ? 'badge-success' : status === 'AUTHENTICATED' ? 'badge-warning' : status === 'QR_READY' ? 'badge-warning' : 'badge-danger';
+  const badgeStyle = status === 'AUTHENTICATED' ? { backgroundColor: 'rgba(52, 183, 241, 0.2)', color: '#34b7f1' } : {};
   const [showDropdown, setShowDropdown] = useState(false);
   
   return (
@@ -322,7 +328,7 @@ function SessionCard({ session, onScan, onDelete }: { session: Session, onScan: 
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {sessionId}</p>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span className={`badge ${statusClass}`}>{status}</span>
+          <span className={`badge ${statusClass}`} style={badgeStyle}>{status}</span>
           <div style={{ position: 'relative' }}>
             <button 
               onClick={() => setShowDropdown(!showDropdown)}
@@ -361,6 +367,14 @@ function SessionCard({ session, onScan, onDelete }: { session: Session, onScan: 
             style={{ flex: 1, padding: '8px', background: 'var(--primary)', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '0.875rem' }}
           >
             Scan QR
+          </button>
+        )}
+        {status === 'AUTHENTICATED' && (
+          <button 
+            disabled
+            style={{ flex: 1, padding: '8px', background: 'rgba(52, 183, 241, 0.2)', border: '1px solid rgba(52, 183, 241, 0.3)', borderRadius: '6px', color: '#34b7f1', cursor: 'not-allowed', fontSize: '0.875rem' }}
+          >
+            Syncing...
           </button>
         )}
       </div>
