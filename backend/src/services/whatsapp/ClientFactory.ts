@@ -23,7 +23,7 @@ export class ClientFactory {
       authStrategy: new RemoteAuth({
         clientId: sessionId,
         store: store,
-        backupSyncIntervalMs: 30000, // 30 seconds
+        backupSyncIntervalMs: 60000, // 60 seconds (minimum required)
         dataPath: './.wwebjs_auth'
       }),
       authTimeoutMs: 120000,
