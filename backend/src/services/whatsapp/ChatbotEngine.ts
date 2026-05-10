@@ -104,9 +104,16 @@ export class ChatbotEngine {
 
     // 6. Global Catch-all for first-time or unknown (EXACT MATCH ONLY)
     const rootFlows = await FlowNode.find({ organizationId: orgId, isRoot: true });
-    const triggeredFlow = rootFlows.find(f => 
-      f.triggerKeywords.some(kw => text === kw.toLowerCase().trim())
-    );
+    console.log(`[BOT] Checking against ${rootFlows.length} root flows...`);
+    
+    const triggeredFlow = rootFlows.find(f => {
+      const match = f.triggerKeywords.some(kw => {
+        const isMatch = text === kw.toLowerCase().trim();
+        if (isMatch) console.log(`[BOT] 🎯 Keyword Match: "${text}" === "${kw}"`);
+        return isMatch;
+      });
+      return match;
+    });
 
     if (triggeredFlow) {
       console.log(`[BOT] 🎯 MATCHED ROOT FLOW: ${triggeredFlow.name}`);

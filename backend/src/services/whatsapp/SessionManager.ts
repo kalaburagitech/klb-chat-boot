@@ -117,20 +117,25 @@ export class SessionManager {
     });
 
     client.on('message', async (message) => {
-      console.log(`📩 [WHATSAPP] New message from ${message.from} on session ${sessionId}: "${message.body}"`);
+      console.log(`📩 [WHATSAPP] New message from ${message.from}: "${message.body}"`);
       
+      // DIAGNOSTIC PING
+      if (message.body.toLowerCase().trim() === '!ping') {
+        console.log('🏓 [WHATSAPP] Ping received, sending Pong...');
+        return client.sendMessage(message.from, '🏓 *Pong!* Your connection is ALIVE and ACTIVE. 🚀');
+      }
+
       this.io?.to(orgSlug).emit('whatsapp:message', { 
         sessionId, 
         from: message.from, 
         body: message.body 
       });
       
-      // Direct process for faster response on hosted environments
+      // Direct process
       try {
         await ChatbotEngine.processIncoming(orgSlug, sessionId, message.from, message.body);
       } catch (err) {
         console.error('❌ Error processing message directly:', err);
-        // Fallback to queue if direct fails
         await enqueueIncoming(sessionId, message, orgSlug);
       }
     });
