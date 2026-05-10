@@ -23,13 +23,13 @@ export class ClientFactory {
       authStrategy: new RemoteAuth({
         clientId: sessionId,
         store: store,
-        backupSyncIntervalMs: 600000, // 10 minutes
-        dataPath: './.wwebjs_auth' // Explicit path to avoid root directory clutter
+        backupSyncIntervalMs: 20000, // 20 seconds - much faster sync for Railway stability
+        dataPath: './.wwebjs_auth'
       }),
-      authTimeoutMs: 60000,
+      authTimeoutMs: 120000, // Increase to 2 minutes
       puppeteer: {
         headless: true,
-        executablePath: process.env.CHROME_PATH || undefined, // Use CHROME_PATH on Railway if needed
+        executablePath: process.env.CHROME_PATH || undefined,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -37,11 +37,12 @@ export class ClientFactory {
           '--disable-gpu',
           '--no-zygote',
           '--no-first-run',
-          '--disable-extensions'
+          '--disable-extensions',
+          '--disable-software-rasterizer'
         ],
         protocolTimeout: 0,
       },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
     });
   }
 }
