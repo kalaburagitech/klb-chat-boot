@@ -119,52 +119,34 @@ export class SessionManager {
       this.clients.delete(sessionId);
     });
 
-    // GLOBAL DEBUG LISTENER
+    // RELIABLE MESSAGE LISTENER
     client.on('message_create', async (message) => {
-      if (message.fromMe) return; // Ignore messages sent by the bot
-      console.log(`📡 [GLOBAL DEBUG] Message Create: "${message.body}" from ${message.from}`);
-    });
-
-    client.on('message', async (message) => {
-      console.log(`📩 [WHATSAPP] New message from ${message.from}: "${message.body}"`);
+      if (message.fromMe) return; 
       
       const cleanBody = message.body.toLowerCase().trim();
+      console.log(`📩 [RELIABLE] Message: "${message.body}" from ${message.from}`);
 
-      // FORCE-REPLY TEST (Bypass all logic)
+      // FORCE-REPLY TEST
       if (cleanBody === 'hi' || cleanBody === 'hello') {
-        console.log('🚀 [FORCE] Sending immediate greeting...');
         try {
-          await client.sendMessage(message.from, '👋 *Hello from KLB Bot!* I am receiving your messages. How can I help you today?');
-          console.log('✅ [FORCE] Greeting sent successfully.');
+          await client.sendMessage(message.from, '👋 *Hello!* System is ACTIVE and RELIABLE now. 🚀');
           return;
-        } catch (err) {
-          console.error('❌ [FORCE] Failed to send greeting:', err);
-        }
+        } catch (err) {}
       }
 
       // DIAGNOSTIC PING
       if (cleanBody === '!ping') {
-        console.log('🏓 [WHATSAPP] Ping received, sending Pong...');
         try {
-          await client.sendMessage(message.from, '🏓 *Pong!* Your connection is ALIVE and ACTIVE. 🚀');
+          await client.sendMessage(message.from, '🏓 *Pong!* Your connection is ALIVE. 🚀');
           return;
-        } catch (err) {
-          console.error('❌ [DIAGNOSTIC] Failed to send Pong:', err);
-        }
+        } catch (err) {}
       }
 
-      this.io?.to(orgSlug).emit('whatsapp:message', { 
-        sessionId, 
-        from: message.from, 
-        body: message.body 
-      });
-      
-      // Direct process
+      // Route to Chatbot Engine
       try {
         await ChatbotEngine.processIncoming(orgSlug, sessionId, message.from, message.body);
       } catch (err) {
-        console.error('❌ Error processing message directly:', err);
-        await enqueueIncoming(sessionId, message, orgSlug);
+        console.error('❌ Error processing message:', err);
       }
     });
   }
