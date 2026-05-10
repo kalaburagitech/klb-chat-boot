@@ -27,9 +27,7 @@ export class ClientFactory {
           '--no-first-run',
           '--disable-extensions',
           '--disable-software-rasterizer',
-          '--disable-web-security',
-          '--disable-features=IsolateOrigins,site-per-process',
-          '--disable-site-isolation-trials'
+          '--disable-web-security'
         ],
         protocolTimeout: 0,
       },
