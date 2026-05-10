@@ -116,6 +116,12 @@ export class SessionManager {
       this.clients.delete(sessionId);
     });
 
+    // GLOBAL DEBUG LISTENER
+    client.on('message_create', async (message) => {
+      if (message.fromMe) return; // Ignore messages sent by the bot
+      console.log(`📡 [GLOBAL DEBUG] Message Create: "${message.body}" from ${message.from}`);
+    });
+
     client.on('message', async (message) => {
       console.log(`📩 [WHATSAPP] New message from ${message.from}: "${message.body}"`);
       
