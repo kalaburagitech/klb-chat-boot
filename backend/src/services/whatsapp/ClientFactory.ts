@@ -1,29 +1,12 @@
-import { Client, RemoteAuth } from 'whatsapp-web.js';
-import { MongoStore } from 'wwebjs-mongo';
+import { Client, LocalAuth } from 'whatsapp-web.js';
 import mongoose from 'mongoose';
-import { SessionStatus } from '../../models/WhatsAppSession';
 
 export class ClientFactory {
-  private static store: any = null;
-
-  static async getStore(): Promise<any> {
-    if (!this.store) {
-      if (mongoose.connection.readyState !== 1) {
-        throw new Error('Mongoose connection not established');
-      }
-      this.store = new MongoStore({ mongoose });
-    }
-    return this.store;
-  }
-
   static async createClient(sessionId: string): Promise<Client> {
-    const store = await this.getStore();
     
     return new Client({
-      authStrategy: new RemoteAuth({
+      authStrategy: new LocalAuth({
         clientId: sessionId,
-        store: store,
-        backupSyncIntervalMs: 60000, // 60 seconds (minimum required)
         dataPath: './.wwebjs_auth'
       }),
       authTimeoutMs: 120000,
