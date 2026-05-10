@@ -23,13 +23,18 @@ export class ClientFactory {
       authStrategy: new RemoteAuth({
         clientId: sessionId,
         store: store,
-        backupSyncIntervalMs: 20000, // 20 seconds - much faster sync for Railway stability
+        backupSyncIntervalMs: 30000, // 30 seconds
         dataPath: './.wwebjs_auth'
       }),
-      authTimeoutMs: 120000, // Increase to 2 minutes
+      authTimeoutMs: 120000,
+      webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014588844-alpha.html',
+      },
       puppeteer: {
         headless: true,
         executablePath: process.env.CHROME_PATH || undefined,
+        defaultViewport: { width: 1280, height: 800 },
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -38,7 +43,9 @@ export class ClientFactory {
           '--no-zygote',
           '--no-first-run',
           '--disable-extensions',
-          '--disable-software-rasterizer'
+          '--disable-software-rasterizer',
+          '--disable-web-security',
+          '--disable-features=IsolateOrigins,site-per-process'
         ],
         protocolTimeout: 0,
       },
