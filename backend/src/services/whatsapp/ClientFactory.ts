@@ -29,7 +29,7 @@ export class ClientFactory {
       authTimeoutMs: 120000,
       webVersionCache: {
         type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014588844-alpha.html',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
       },
       puppeteer: {
         headless: true,
@@ -45,7 +45,8 @@ export class ClientFactory {
           '--disable-extensions',
           '--disable-software-rasterizer',
           '--disable-web-security',
-          '--disable-features=IsolateOrigins,site-per-process'
+          '--disable-features=IsolateOrigins,site-per-process',
+          '--disable-site-isolation-trials'
         ],
         protocolTimeout: 0,
       },
