@@ -116,15 +116,22 @@ export class SessionManager {
     });
 
     client.on('message', async (message) => {
-      console.log(`New message from ${message.from} for ${sessionId}`);
+      console.log(`📩 [WHATSAPP] New message from ${message.from} on session ${sessionId}: "${message.body}"`);
+      
       this.io?.to(orgSlug).emit('whatsapp:message', { 
         sessionId, 
         from: message.from, 
         body: message.body 
       });
       
-      // Enqueue for processing
-      await enqueueIncoming(sessionId, message, orgSlug);
+      // Direct process for faster response on hosted environments
+      try {
+        await ChatbotEngine.processIncoming(orgSlug, sessionId, message.from, message.body);
+      } catch (err) {
+        console.error('❌ Error processing message directly:', err);
+        // Fallback to queue if direct fails
+        await enqueueIncoming(sessionId, message, orgSlug);
+      }
     });
   }
 
