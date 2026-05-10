@@ -64,6 +64,9 @@ app.use(morgan('dev'));
 app.use(express.json());
 
 // Routes
+app.get('/', (req, res) => {
+  res.status(200).send('KLB Chat Boot Backend is Running 🚀');
+});
 app.use('/api/whatsapp', whatsappRoutes);
 
 // Socket.io Setup
