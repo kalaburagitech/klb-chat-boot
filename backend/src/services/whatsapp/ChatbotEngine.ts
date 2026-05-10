@@ -11,6 +11,9 @@ export class ChatbotEngine {
       .trim()
       .toLowerCase()
       .replace(/\s+/g, ' ');
+    
+    console.log(`[BOT] Normalizing input: "${messageBody}" -> "${text}"`);
+    
     const exactTrigger = "hi i need klb connect demo";
     
     // 1. Resolve Organization & Settings
@@ -20,9 +23,10 @@ export class ChatbotEngine {
     }
     
     if (!org) {
-      console.error(`Organization not found for: ${orgIdOrSlug}`);
+      console.error(`❌ [BOT] Organization not found for: ${orgIdOrSlug}`);
       return;
     }
+    console.log(`[BOT] Found Org: ${org.name} (${org._id})`);
 
     const orgId = org._id.toString();
     const timeoutMinutes = org.settings?.conversationTimeoutMinutes || 5;
@@ -40,6 +44,8 @@ export class ChatbotEngine {
     const isTimeout = diffMinutes > timeoutMinutes;
     const isResetTrigger = text === exactTrigger;
     const isExitTrigger = text === '0';
+
+    console.log(`[BOT] State check - Timeout: ${isTimeout}, Reset: ${isResetTrigger}, Exit: ${isExitTrigger}`);
 
     // 4. Handle Root Reset Triggers (If timed out, ONLY allow the exact trigger)
     if (isResetTrigger) {
@@ -103,11 +109,11 @@ export class ChatbotEngine {
     );
 
     if (triggeredFlow) {
+      console.log(`[BOT] 🎯 MATCHED ROOT FLOW: ${triggeredFlow.name}`);
       return this.executeFlow(state, triggeredFlow);
     }
 
-    // Default Fallback
-    console.log(`No match found for: ${text}`);
+    console.log(`[BOT] ⚠️ No match found for: "${text}"`);
   }
 
   private static async executeFlow(state: any, flow: any) {

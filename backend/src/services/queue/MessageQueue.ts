@@ -86,17 +86,20 @@ const outgoingWorker = new Worker('outgoing-messages', async (job: Job) => {
 
 // Worker for Incoming Messages (Chatbot/AI Engine)
 const incomingWorker = new Worker('incoming-messages', async (job: Job) => {
-  const { sessionId, message, orgId } = job.data;
-  
-  console.log(`Processing incoming message from ${message.from} on ${sessionId}`);
-  
-  // Route to Chatbot Engine
-  await ChatbotEngine.processIncoming(
-    orgId || 'default_org', 
-    sessionId, 
-    message.from, 
-    message.body
-  );
+  try {
+    const { sessionId, message, orgId } = job.data;
+    console.log(`[QUEUE] Processing incoming message from ${message.from} on ${sessionId}`);
+    
+    // Route to Chatbot Engine
+    await ChatbotEngine.processIncoming(
+      orgId || 'klb-connect', 
+      sessionId, 
+      message.from, 
+      message.body
+    );
+  } catch (err) {
+    console.error('❌ [QUEUE] ERROR IN INCOMING WORKER:', err);
+  }
   
 }, {
   connection: redisConnection
