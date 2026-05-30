@@ -133,7 +133,10 @@ export class SessionManager {
 
       // 2. Process via Queue and Conversation Engine
       try {
-        await enqueueIncoming(sessionId, message, orgSlug);
+        await enqueueIncoming(sessionId, {
+          from: message.from,
+          body: message.body
+        }, orgSlug);
       } catch (err) {
         console.error('❌ Error enqueuing message:', err);
       }
