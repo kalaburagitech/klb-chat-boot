@@ -2,7 +2,6 @@ import { Client } from 'whatsapp-web.js';
 import { ClientFactory } from './ClientFactory';
 import WhatsAppSession, { SessionStatus } from '../../models/WhatsAppSession';
 import { Server } from 'socket.io';
-import { ChatbotEngine } from './ChatbotEngine';
 import QRCode from 'qrcode';
 import { enqueueIncoming } from '../queue/MessageQueue';
 
@@ -132,11 +131,11 @@ export class SessionManager {
         body: message.body 
       });
 
-      // 2. Process via Chatbot Engine
+      // 2. Process via Queue and Conversation Engine
       try {
-        await ChatbotEngine.processIncoming(orgSlug, sessionId, message.from, message.body);
+        await enqueueIncoming(sessionId, message, orgSlug);
       } catch (err) {
-        console.error('❌ Error in ChatbotEngine:', err);
+        console.error('❌ Error enqueuing message:', err);
       }
     });
   }

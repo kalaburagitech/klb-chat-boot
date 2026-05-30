@@ -14,8 +14,12 @@ import whatsappRoutes from './routes/whatsappRoutes';
 import './services/queue/MessageQueue'; // Initialize workers
 
 // --- CRITICAL ERROR HANDLING (PREVENT CRASHES) ---
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', (err: any) => {
   console.error('🔥 UNCAUGHT EXCEPTION:', err.message);
+  if (err.code === 'ECONNRESET' || err.message.includes('ECONNRESET')) {
+    console.warn('⚠️ Ignoring ECONNRESET socket error to prevent process crash.');
+    return;
+  }
   if (err.message.includes('ENOENT') && err.message.includes('.zip')) {
     console.warn('⚠️ Ignoring RemoteAuth ZIP error to prevent process crash.');
     return;
@@ -63,11 +67,26 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 
+import templateRoutes from './api/routes/template.routes';
+import menuRoutes from './api/routes/menu.routes';
+import ruleRoutes from './api/routes/rule.routes';
+import scheduleRoutes from './api/routes/schedule.routes';
+import messageRoutes from './api/routes/message.routes';
+import analyticsRoutes from './api/routes/analytics.routes';
+
 // Routes
 app.get('/', (req, res) => {
   res.status(200).send('KLB Chat Boot Backend is Running 🚀');
 });
 app.use('/api/whatsapp', whatsappRoutes);
+
+// V1 Platform APIs
+app.use('/api/v1/templates', templateRoutes);
+app.use('/api/v1/menus', menuRoutes);
+app.use('/api/v1/rules', ruleRoutes);
+app.use('/api/v1/schedules', scheduleRoutes);
+app.use('/api/v1/messages', messageRoutes);
+app.use('/api/v1/analytics', analyticsRoutes);
 
 // Socket.io Setup
 io.on('connection', (socket) => {

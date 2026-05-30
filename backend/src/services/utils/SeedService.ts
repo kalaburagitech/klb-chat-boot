@@ -1,4 +1,5 @@
-import FlowNode, { FlowNodeType } from '../../models/FlowNode';
+import Menu from '../../models/Menu';
+import AutoReplyRule from '../../models/AutoReplyRule';
 import Organization from '../../models/Organization';
 import mongoose from 'mongoose';
 import path from 'path';
@@ -17,122 +18,98 @@ export class SeedService {
       });
     }
 
-    const orgId = org._id;
+    const orgId = org._id.toString();
 
-    // Clear existing flows for this org
-    await FlowNode.deleteMany({ organizationId: orgId });
+    // Clear existing menus and rules for this org
+    await Menu.deleteMany({ organizationId: orgId });
+    await AutoReplyRule.deleteMany({ organizationId: orgId });
 
-    // 2. ROOT FLOW: Welcome Message
-    const welcomeFlow = await FlowNode.create({
+    // 2. ROOT MENU: Welcome Message
+    const welcomeMenu = await Menu.create({
       organizationId: orgId,
-      name: 'Welcome Flow',
-      type: FlowNodeType.MENU,
+      title: '🏢 *KalaburagiTech Pvt Ltd* 🚀',
+      content: `Welcome to *KLB TECH*\n\nWe provide enterprise-grade software solutions and real-time project guidance.\n\n━━━━━━━━━━━━━━━\n💻 Our Services\n━━━━━━━━━━━━━━━`,
       isRoot: true,
-      triggerKeywords: ['hi i need klb connect demo'],
-      mediaUrl: 'https://klb-media-production.up.railway.app/api/media/fd965171-de05-47f0-a238-b0646202bc7c',
-      content: `🏢 *KalaburagiTech Pvt Ltd* 🚀\n\nWelcome to *KLB TECH*\n\nWe provide enterprise-grade software solutions and real-time project guidance.\n\n━━━━━━━━━━━━━━━\n💻 Our Services\n━━━━━━━━━━━━━━━`,
+      active: true,
       options: [
-        { label: 'College Projects', keyword: '1' },
-        { label: 'Mobile App Development', keyword: '2' },
-        { label: 'Website Development', keyword: '3' },
-        { label: 'AI / ML Solutions', keyword: '4' },
-        { label: 'Internship Guidance', keyword: '5' },
+        { label: 'Website Development', keyword: '1', action: 'NEXT_MENU' },
+        { label: 'College Projects', keyword: '2', action: 'NEXT_MENU' },
+        { label: 'App Development', keyword: '3', action: 'NEXT_MENU' },
+        { label: 'Talk To Team', keyword: '4', action: 'NEXT_MENU' },
       ],
     });
 
-    // 3. OPTION 1: College Projects
-    const projectsFlow = await FlowNode.create({
+    // 3. OPTION 1: Website Development (Menu)
+    const websiteMenu = await Menu.create({
       organizationId: orgId,
-      name: 'College Projects',
-      type: FlowNodeType.MENU,
-      mediaUrl: 'https://placehold.co/600x400/000000/orange?text=Projects+Poster',
-      content: `🎓 *College Project Services*\n\n✅ Final Year Projects\n✅ AI / ML Projects\n✅ MERN Stack Projects\n✅ IEEE Projects\n✅ Real-Time Internship\n✅ Documentation Support\n\nChoose below 👇`,
+      title: '🌐 Website Development Packages',
+      content: `✅ Landing Page Website\n₹5,000\n\n✅ Business Website\n₹10,000\n\n✅ Dynamic Website\n₹20,000+\n\nFeatures:\n\n✔ Mobile Friendly\n✔ Modern UI\n✔ SEO Ready\n✔ Fast Loading\n\nPortfolio:\nhttps://yourwebsite.com/portfolio`,
+      active: true,
       options: [
-        { label: 'AI Projects', keyword: '1' },
-        { label: 'Web Projects', keyword: '2' },
-        { label: 'Android Projects', keyword: '3' },
-        { label: 'Internship Details', keyword: '4' },
-        { label: 'Talk To Team', keyword: '5' },
+        { label: 'Contact Team', keyword: '1', action: 'NEXT_MENU' },
+        { label: 'Back To Menu', keyword: '2', action: 'NEXT_MENU', targetId: welcomeMenu._id.toString() }
       ],
-      parentFlowId: welcomeFlow._id.toString(),
     });
 
-    // 4. OPTION 2: Mobile App Dev (Direct Details)
-    const mobileFlow = await FlowNode.create({
+    // 4. OPTION 3: App Development (Menu)
+    const appMenu = await Menu.create({
       organizationId: orgId,
-      name: 'Mobile App Dev',
-      type: FlowNodeType.MESSAGE,
-      mediaUrl: 'https://placehold.co/600x400/000000/orange?text=App+Showcase',
-      content: `📱 *Mobile App Development*\n\nWe develop:\n✅ Android Apps\n✅ iOS Apps\n✅ Startup Apps\n✅ AI Integrated Apps\n✅ Business Applications\n\n🌐 Start your project: *kalaburgitech.com*\n\n📞 Or call: *+91 9108080161*`,
-      parentFlowId: welcomeFlow._id.toString(),
+      title: '📱 Mobile App Development',
+      content: `✅ Android App\n\n✅ iOS App\n\n✅ Admin Dashboard\n\nStarting From:\n₹25,000\n\nFeatures:\n\n✔ User Login\n✔ Push Notifications\n✔ Admin Panel\n✔ Cloud Database\n\nPortfolio:\nhttps://yourwebsite.com/apps`,
+      active: true,
+      options: [
+        { label: 'Contact Team', keyword: '1', action: 'NEXT_MENU' },
+        { label: 'Back To Menu', keyword: '2', action: 'NEXT_MENU', targetId: welcomeMenu._id.toString() }
+      ],
     });
 
-    // 5. OPTION 3: Website Dev (Direct Details)
-    const websiteFlow = await FlowNode.create({
+    // 5. OPTION 2: College Projects (Menu)
+    const projectsMenu = await Menu.create({
       organizationId: orgId,
-      name: 'Website Dev',
-      type: FlowNodeType.MESSAGE,
-      mediaUrl: 'https://placehold.co/600x400/000000/orange?text=Website+Banner',
-      content: `🌐 *Website Development Services*\n\nWe build:\n✅ Business Websites\n✅ AI Websites\n✅ 3D Websites\n✅ Portfolio Websites\n✅ E-Commerce Platforms\n\n🌐 View Portfolio: *kalaburgitech.com*`,
-      parentFlowId: welcomeFlow._id.toString(),
+      title: '🎓 *College Project Services*',
+      content: `✅ Final Year Projects\n✅ AI / ML Projects\n✅ MERN Stack Projects\n✅ IEEE Projects\n✅ Real-Time Internship\n✅ Documentation Support\n\nChoose below 👇`,
+      active: true,
+      options: [
+        { label: 'Talk To Team', keyword: '1', action: 'NEXT_MENU' },
+      ],
     });
 
-    // 6. LEAF NODES: College Project Types
-    const aiProjectsFlow = await FlowNode.create({
+    // 6. Contact Team (Menu/Message)
+    const contactMenu = await Menu.create({
       organizationId: orgId,
-      name: 'AI Projects Details',
-      type: FlowNodeType.MESSAGE,
-      content: `🤖 *AI / ML Project Categories*\n\n1. Deep Learning (CNN/RNN)\n2. Natural Language Processing\n3. Computer Vision\n4. Predictive Analytics\n\n*All projects include:*\n✅ Source Code\n✅ Dataset\n✅ PPT & Report\n✅ Installation Guide\n\n🌐 Explore more: *kalaburgitech.com*\n\nWould you like to book a demo? Reply with "demo".`,
-      parentFlowId: projectsFlow._id.toString(),
+      title: '📞 *Contact Team*',
+      content: `Please wait a moment. Our technical team is being notified.\n\nYou can also call us directly at: *+91 9108080161*`,
+      active: true,
+      options: [
+        { label: 'Back To Menu', keyword: '1', action: 'NEXT_MENU', targetId: welcomeMenu._id.toString() }
+      ]
     });
 
-    const webProjectsFlow = await FlowNode.create({
+    // 7. Link all menus
+    welcomeMenu.options[0].targetId = websiteMenu._id.toString();
+    welcomeMenu.options[1].targetId = projectsMenu._id.toString();
+    welcomeMenu.options[2].targetId = appMenu._id.toString();
+    welcomeMenu.options[3].targetId = contactMenu._id.toString();
+    
+    websiteMenu.options[0].targetId = contactMenu._id.toString();
+    appMenu.options[0].targetId = contactMenu._id.toString();
+    projectsMenu.options[0].targetId = contactMenu._id.toString();
+
+    await welcomeMenu.save();
+    await websiteMenu.save();
+    await appMenu.save();
+    await projectsMenu.save();
+
+    // 5. Create AutoReply Rule
+    await AutoReplyRule.create({
       organizationId: orgId,
-      name: 'Web Projects Details',
-      type: FlowNodeType.MESSAGE,
-      content: `🌐 *MERN / Web Projects*\n\n1. E-Commerce Platforms\n2. Hospital Management\n3. Learning Management Systems\n4. Real-time Chat Apps\n\n*Tech Stack:* React, Node.js, MongoDB, Next.js.\n\n🌐 View Portfolio: *kalaburgitech.com*\n\nReply with "demo" to see one live!`,
-      parentFlowId: projectsFlow._id.toString(),
+      keyword: 'pricing',
+      matchType: 'CONTAINS',
+      replyType: 'TEXT',
+      replyContent: '💰 *Pricing*\n\nPlease visit our website kalaburgitech.com for detailed pricing.',
+      active: true
     });
 
-    const androidProjectsFlow = await FlowNode.create({
-      organizationId: orgId,
-      name: 'Android Projects Details',
-      type: FlowNodeType.MESSAGE,
-      content: `📱 *Android Project Categories*\n\n1. Firebase Integrated Apps\n2. SQLite / Room Database\n3. API based Applications\n4. Kotlin / Java Projects\n\n🌐 Explore: *kalaburgitech.com*`,
-      parentFlowId: projectsFlow._id.toString(),
-    });
-
-    const internshipFlow = await FlowNode.create({
-      organizationId: orgId,
-      name: 'Internship Details',
-      type: FlowNodeType.MESSAGE,
-      content: `🎓 *Internship Guidance*\n\n✅ 1-6 Months Programs\n✅ Real-time Project Experience\n✅ Mentorship from Experts\n✅ Certification & LOR\n\n🌐 Apply at: *kalaburgitech.com*`,
-      parentFlowId: welcomeFlow._id.toString(),
-    });
-
-    const talkToTeamFlow = await FlowNode.create({
-      organizationId: orgId,
-      name: 'Talk To Team',
-      type: FlowNodeType.MESSAGE,
-      content: `📞 *Connect with our Experts*\n\nPlease wait a moment. Our technical team is being notified.\n\nYou can also call us directly at: *+91 9108080161*\n\n_Thank you for choosing KalaburagiTech!_`,
-    });
-
-    // 7. Link College Projects Options
-    projectsFlow.options[0].nextFlowId = aiProjectsFlow._id.toString();
-    projectsFlow.options[1].nextFlowId = webProjectsFlow._id.toString();
-    projectsFlow.options[2].nextFlowId = androidProjectsFlow._id.toString();
-    projectsFlow.options[3].nextFlowId = internshipFlow._id.toString();
-    projectsFlow.options[4].nextFlowId = talkToTeamFlow._id.toString();
-    await projectsFlow.save();
-
-    // 9. Link root options to the new flows
-    welcomeFlow.options[0].nextFlowId = projectsFlow._id.toString();
-    welcomeFlow.options[1].nextFlowId = mobileFlow._id.toString();
-    welcomeFlow.options[2].nextFlowId = websiteFlow._id.toString();
-    welcomeFlow.options[3].nextFlowId = aiProjectsFlow._id.toString(); 
-    welcomeFlow.options[4].nextFlowId = internshipFlow._id.toString();
-    await welcomeFlow.save();
-
-    console.log('KLB Connect Flows seeded successfully with deep links!');
+    console.log('KLB Connect Menus and Rules seeded successfully!');
   }
 }

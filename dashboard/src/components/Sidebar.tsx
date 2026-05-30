@@ -11,7 +11,9 @@ export default function Sidebar() {
   const navItems = [
     { name: 'Dashboard', href: '/', icon: '📊' },
     { name: 'Sessions', href: '/sessions', icon: '📱' },
-    { name: 'Automation', href: '/automation', icon: '🤖' },
+    { name: 'Templates', href: '/templates', icon: '📄' },
+    { name: 'Auto-Replies', href: '/rules', icon: '⚡' },
+    { name: 'Schedules', href: '/schedules', icon: '⏰' },
     { name: 'Analytics', href: '/analytics', icon: '📈' },
   ];
 

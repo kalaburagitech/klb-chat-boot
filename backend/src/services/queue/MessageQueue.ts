@@ -1,24 +1,42 @@
 import { Queue, Worker, Job } from 'bullmq';
 import { sessionManager } from '../whatsapp/SessionManager';
 import WhatsAppSession from '../../models/WhatsAppSession';
-import { ChatbotEngine } from '../whatsapp/ChatbotEngine';
+import { ConversationEngine } from '../../modules/conversations/ConversationEngine';
 import { MessageMedia } from 'whatsapp-web.js';
 import axios from 'axios';
 import Redis from 'ioredis';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
-// Shared Redis connection for better performance and resource management
-const redisConnection = new Redis(REDIS_URL, {
-  maxRetriesPerRequest: null,
-});
+// BullMQ REQUIRES a dedicated Redis connection for each Queue and Worker instance.
+// Sharing a connection causes BLPOP blocking conflicts resulting in ECONNRESET.
+const createRedisConnection = () => {
+  const conn = new Redis(REDIS_URL, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+    retryStrategy(times) {
+      console.warn(`⚠️ Redis reconnecting... attempt ${times}`);
+      return Math.min(times * 50, 2000);
+    }
+  });
+
+  conn.on('error', (err: any) => {
+    if (err.code === 'ECONNRESET') {
+      console.warn('⚠️ Redis connection reset (ECONNRESET). Auto-reconnecting...');
+    } else {
+      console.error('Redis Error:', err.message);
+    }
+  });
+
+  return conn;
+};
 
 export const incomingQueue = new Queue('incoming-messages', {
-  connection: redisConnection
+  connection: createRedisConnection()
 });
 
 export const outgoingQueue = new Queue('outgoing-messages', {
-  connection: redisConnection
+  connection: createRedisConnection()
 });
 
 // Worker for Outgoing Messages (Anti-Ban Throttling)
@@ -77,7 +95,7 @@ const outgoingWorker = new Worker('outgoing-messages', async (job: Job) => {
 
   console.log(`Message sent to ${to} via ${sessionId}`);
 }, {
-  connection: redisConnection,
+  connection: createRedisConnection(),
   limiter: {
     max: 1, // One message at a time per worker instance
     duration: 3000, // 3 seconds between jobs to be safe
@@ -90,8 +108,8 @@ const incomingWorker = new Worker('incoming-messages', async (job: Job) => {
     const { sessionId, message, orgId } = job.data;
     console.log(`[QUEUE] Processing incoming message from ${message.from} on ${sessionId}`);
     
-    // Route to Chatbot Engine
-    await ChatbotEngine.processIncoming(
+    // Route to Conversation Engine
+    await ConversationEngine.processIncoming(
       orgId || 'klb-connect', 
       sessionId, 
       message.from, 
@@ -102,7 +120,7 @@ const incomingWorker = new Worker('incoming-messages', async (job: Job) => {
   }
   
 }, {
-  connection: redisConnection
+  connection: createRedisConnection()
 });
 
 export const enqueueMessage = (sessionId: string, to: string, content: string, options?: any) => {

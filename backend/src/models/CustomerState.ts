@@ -6,7 +6,8 @@ export interface ICustomerState extends Document {
   sessionId: string;
   currentFlowId?: string;
   previousFlowId?: string;
-  conversationState: 'ACTIVE' | 'IDLE' | 'COMPLETED' | 'EXPIRED';
+  activeMenuId?: string;
+  conversationState: 'MAIN_MENU' | 'SERVICES_MENU' | 'REPORT_MENU' | 'DOCS_MENU' | 'CONTACT_MENU' | 'AI_MODE' | 'RECOVERY_MODE' | 'EXIT' | 'ACTIVE' | 'IDLE' | 'COMPLETED' | 'EXPIRED';
   lastInteractionAt: Date;
   sessionStartedAt: Date;
   metadata: any;
@@ -18,7 +19,12 @@ const CustomerStateSchema: Schema = new Schema({
   sessionId: { type: String, required: true },
   currentFlowId: { type: String },
   previousFlowId: { type: String },
-  conversationState: { type: String, enum: ['ACTIVE', 'IDLE', 'COMPLETED', 'EXPIRED'], default: 'ACTIVE' },
+  activeMenuId: { type: Schema.Types.ObjectId, ref: 'Menu' },
+  conversationState: { 
+    type: String, 
+    enum: ['MAIN_MENU', 'SERVICES_MENU', 'REPORT_MENU', 'DOCS_MENU', 'CONTACT_MENU', 'AI_MODE', 'RECOVERY_MODE', 'EXIT', 'ACTIVE', 'IDLE', 'COMPLETED', 'EXPIRED'], 
+    default: 'MAIN_MENU' 
+  },
   lastInteractionAt: { type: Date, default: Date.now },
   sessionStartedAt: { type: Date, default: Date.now },
   metadata: { type: Schema.Types.Mixed, default: {} },
