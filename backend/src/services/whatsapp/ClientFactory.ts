@@ -1,5 +1,5 @@
 import { Client, LocalAuth } from 'whatsapp-web.js';
-import mongoose from 'mongoose';
+
 
 export class ClientFactory {
   static async createClient(sessionId: string): Promise<Client> {
@@ -10,9 +10,9 @@ export class ClientFactory {
         dataPath: './.wwebjs_auth'
       }),
       authTimeoutMs: 120000,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       webVersionCache: {
-        type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+        type: 'local'
       },
       puppeteer: {
         headless: 'new',
@@ -32,7 +32,6 @@ export class ClientFactory {
         ],
         protocolTimeout: 0,
       },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
     });
   }
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { getSocket } from '@/utils/socket';
+import { useQuery, useMutation } from "convex/react";
+// Removed anyApi due to Next.js strict resolution
 import Link from 'next/link';
 import QRModal from '@/components/QRModal';
 import DeleteConfirmationModal from '@/components/DeleteConfirmationModal';
@@ -37,105 +38,33 @@ export default function DashboardPage() {
     { label: 'AI Replies', value: statsData.aiReplies, color: '#f59e0b' },
   ];
 
+  const sessionsData = useQuery("sessions:getByOrg" as any, { organizationSlug: 'klb-connect' });
+  const statsResponse = useQuery("sessions:getStats" as any, { organizationSlug: 'klb-connect' });
+
   useEffect(() => {
-    fetchSessions();
-    fetchStats();
-    const socket = getSocket();
-    
-    // Join the organization room
-    socket.emit('join:org', 'klb-connect');
+    if (sessionsData !== undefined) {
+      setSessions(sessionsData);
+      setLoading(false);
+      setError(null);
+    }
+  }, [sessionsData]);
 
-    socket.on('whatsapp:status', (data: any) => {
-      setSessions(prev => prev.map(s => 
-        s.sessionId === data.sessionId ? { ...s, status: data.status } : s
-      ));
-      fetchStats(); 
-    });
+  useEffect(() => {
+    if (statsResponse !== undefined) {
+      setStatsData({
+        activeSessions: statsResponse.activeSessions?.toString() || '0',
+        messagesSent: statsResponse.messagesSent?.toLocaleString() || '0',
+        totalLeads: statsResponse.totalLeads?.toLocaleString() || '0',
+        aiReplies: statsResponse.aiReplies || '0%'
+      });
+    }
+  }, [statsResponse]);
 
-    socket.on('whatsapp:ready', (data: any) => {
-      setSessions(prev => prev.map(s => 
-        s.sessionId === data.sessionId ? { ...s, status: 'READY' } : s
-      ));
-    });
-
-    socket.on('whatsapp:deleted', (data: any) => {
-      setSessions(prev => prev.filter(s => s.sessionId !== data.sessionId));
-      fetchStats();
-    });
-
-    const pollInterval = setInterval(() => {
-      fetchSessions();
-    }, 10000);
-
-    return () => {
-      socket.off('whatsapp:status');
-      socket.off('whatsapp:ready');
-      socket.off('whatsapp:deleted');
-      clearInterval(pollInterval);
-    };
-  }, []);
+  const createSession = useMutation("sessions:createSession" as any);
+  const removeSession = useMutation("sessions:deleteSession" as any);
 
   const handleRetry = async () => {
-    setIsRetrying(true);
-    setError(null);
-    await Promise.all([fetchSessions(), fetchStats()]);
-    setIsRetrying(false);
-  };
-
-  const fetchSessions = async () => {
-    try {
-      let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      
-      // Smart Fallback for Production
-      if (!backendUrl && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-        backendUrl = 'https://klb-chat-boot-production.up.railway.app';
-      }
-      
-      backendUrl = backendUrl || 'http://localhost:4005';
-      
-      const res = await fetch(`${backendUrl}/api/whatsapp/sessions/klb-connect`);
-      
-      if (!res.ok) {
-        throw new Error(`Failed to fetch sessions: ${res.statusText}`);
-      }
-
-      const data = await res.json();
-      setSessions(Array.isArray(data) ? data : []);
-      setError(null);
-    } catch (err: any) {
-      console.error('Failed to fetch sessions:', err);
-      setError(err.message || 'Failed to connect to backend server');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStats = async () => {
-    try {
-      let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-      
-      if (!backendUrl && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-        backendUrl = 'https://klb-chat-boot-production.up.railway.app';
-      }
-      
-      backendUrl = backendUrl || 'http://localhost:4005';
-      
-      const res = await fetch(`${backendUrl}/api/whatsapp/stats/klb-connect`);
-      
-      if (!res.ok) {
-        throw new Error(`Failed to fetch stats: ${res.statusText}`);
-      }
-
-      const data = await res.json();
-      setStatsData({
-        activeSessions: data.activeSessions?.toString() || '0',
-        messagesSent: data.messagesSent?.toLocaleString() || '0',
-        totalLeads: data.totalLeads?.toLocaleString() || '0',
-        aiReplies: data.aiReplies || '0%'
-      });
-    } catch (err) {
-      console.error('Failed to fetch stats:', err);
-    }
+    // Convex automatically retries on connection loss
   };
 
   const addSession = async () => {
@@ -143,16 +72,11 @@ export default function DashboardPage() {
     if (!name) return;
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005';
-      const res = await fetch(`${backendUrl}/api/whatsapp/sessions/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+      const newSessionId = await createSession({ 
+        organizationSlug: 'klb-connect', 
+        name 
       });
-      const newSession = await res.json();
-      setSessions(prev => [...prev, newSession]);
-      
-      setSelectedSession(newSession.sessionId);
+      setSelectedSession(newSessionId);
       setIsModalOpen(true);
     } catch (err) {
       alert('Failed to add session');
@@ -168,11 +92,10 @@ export default function DashboardPage() {
     if (!sessionToDelete) return;
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005';
-      await fetch(`${backendUrl}/api/whatsapp/sessions/${sessionToDelete.id}`, {
-        method: 'DELETE',
+      await removeSession({ 
+        organizationSlug: 'klb-connect', 
+        sessionId: sessionToDelete.id 
       });
-      setSessions(prev => prev.filter(s => s.sessionId !== sessionToDelete.id));
       setIsDeleteModalOpen(false);
       setSessionToDelete(null);
     } catch (err) {

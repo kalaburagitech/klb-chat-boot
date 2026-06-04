@@ -1,11 +1,7 @@
-import CustomerState from '../../models/CustomerState';
-import Organization from '../../models/Organization';
-import Menu from '../../models/Menu';
-import AutoReplyRule from '../../models/AutoReplyRule';
-import Template from '../../models/Template';
-import AnalyticsLog from '../../models/AnalyticsLog';
 import { enqueueMessage } from '../../services/queue/MessageQueue';
 import { GeminiFallback } from '../ai/GeminiFallback';
+import { convexClient } from '../../utils/convex';
+import { api } from '../../../convex/_generated/api';
 
 export class ConversationEngine {
   static async processIncoming(orgIdOrSlug: string, sessionId: string, phoneNumber: string, messageBody: string) {
@@ -13,21 +9,26 @@ export class ConversationEngine {
     console.log(`MESSAGE_RECEIVED: ${messageBody}`);
     
     // Resolve Organization
-    let org = await Organization.findOne({ slug: orgIdOrSlug }) || await Organization.findById(orgIdOrSlug);
+    const org: any = await convexClient.query(api.chatbot.getOrganization, { slugOrId: orgIdOrSlug });
     if (!org) {
       console.log('FLOW_NOT_FOUND: Organization not found');
       return;
     }
 
-    const orgId = org._id.toString();
+    const orgId = org._id;
     console.log(`ORGANIZATION_FOUND: ${orgId}`);
 
     // Get or create customer state
-    let state = await CustomerState.findOne({ organizationId: orgId, phoneNumber, sessionId });
-    let isNewSession = false;
-    if (!state) {
-      state = new CustomerState({ organizationId: orgId, phoneNumber, sessionId, conversationState: 'MAIN_MENU' });
-      isNewSession = true;
+    const result = await convexClient.mutation(api.chatbot.getCustomerState, {
+      organizationId: orgId,
+      phoneNumber,
+      sessionId
+    });
+    const state = result.state;
+    const isNewSession = result.isNewSession;
+    if (!state) return;
+
+    if (isNewSession) {
       await this.logAnalytics(orgId, phoneNumber, sessionId, 'NEW_CONVERSATION');
     }
 
@@ -36,22 +37,20 @@ export class ConversationEngine {
     // 1. Check Auto-Reply Rules first (Global override like "help", "pricing")
     const ruleMatch = await this.checkAutoReplyRules(orgId, text);
     if (ruleMatch) {
-      await this.logAnalytics(orgId, phoneNumber, sessionId, 'KEYWORD_MATCH', { keyword: ruleMatch.keyword, ruleId: ruleMatch._id });
+      await this.logAnalytics(orgId, phoneNumber, sessionId, 'KEYWORD_MATCH', { keyword: ruleMatch.trigger, ruleId: ruleMatch._id });
       return this.executeRule(ruleMatch, state);
     }
 
     // 2. Handle EXIT explicitly
     if (text === '0' || text === 'exit') {
-      state.conversationState = 'EXIT';
-      await state.save();
+      await this.updateState(state._id, 'EXIT');
       console.log('STATE_UPDATED');
       return enqueueMessage(sessionId, phoneNumber, '✅ Session closed. Have a great day!\n\n_Type "hi" to start again._').then(() => console.log('MESSAGE_SENT'));
     }
 
     // 3. Handle Boot/Reset explicitly
     if (['hi', 'hello', 'demo', 'project'].includes(text)) {
-      state.conversationState = 'MAIN_MENU';
-      await state.save();
+      await this.updateState(state._id, 'MAIN_MENU');
       console.log('STATE_UPDATED');
       return this.sendMenu(state, null, orgId, true);
     }
@@ -84,38 +83,49 @@ export class ConversationEngine {
       case 'IDLE':
       case 'EXPIRED':
         // Re-awaken session
-        state.conversationState = 'MAIN_MENU';
-        await state.save();
+        await this.updateState(state._id, 'MAIN_MENU');
         await this.sendMenu(state, null, orgId, true);
         break;
         
       default:
-        state.conversationState = 'MAIN_MENU';
-        await state.save();
+        await this.updateState(state._id, 'MAIN_MENU');
         await this.sendMenu(state, null, orgId, true);
         break;
     }
   }
 
-  private static async checkAutoReplyRules(orgId: string, text: string) {
-    const rules = await AutoReplyRule.find({ organizationId: orgId, active: true });
-    return rules.find(rule => 
-      rule.matchType === 'EXACT' ? rule.keyword.toLowerCase() === text : text.includes(rule.keyword.toLowerCase())
-    );
+  private static async updateState(stateId: any, conversationState: string, activeMenuId?: any) {
+     await convexClient.mutation(api.chatbot.updateCustomerState, {
+       stateId, conversationState, activeMenuId
+     });
+  }
+
+  private static async checkAutoReplyRules(orgId: any, text: string) {
+    return await convexClient.query(api.chatbot.checkAutoReplyRules, { organizationId: orgId, text });
   }
 
   private static async executeRule(rule: any, state: any) {
-    if (rule.replyType === 'TEXT') {
-      return enqueueMessage(state.sessionId, state.phoneNumber, rule.replyContent);
+    if (rule.type === 'TEXT') {
+      return enqueueMessage(state.sessionId, state.phoneNumber, rule.response);
+    } else if (rule.type === 'TEMPLATE') {
+      const template: any = await convexClient.query(api.chatbot.getTemplate, { templateId: rule.response });
+      if (template) {
+         let content = template.content;
+         // Replace {{1}} with a generic "there" since we don't have user's name yet
+         content = content.replace(/\{\{1\}\}/g, 'there');
+         return enqueueMessage(state.sessionId, state.phoneNumber, content);
+      } else {
+         return enqueueMessage(state.sessionId, state.phoneNumber, 'Template not found.');
+      }
     }
-    // Implement MEDIA, TEMPLATE overrides later
+    // Implement MEDIA, MENU overrides later
     return enqueueMessage(state.sessionId, state.phoneNumber, 'Rule matched but handler not implemented.');
   }
 
-  private static async handleMenuState(state: any, text: string, orgId: string) {
+  private static async handleMenuState(state: any, text: string, orgId: any) {
     // If active menu exists, try to select option
     if (state.activeMenuId) {
-      const activeMenu = await Menu.findById(state.activeMenuId);
+      const activeMenu: any = await convexClient.query(api.chatbot.getMenu, { menuId: state.activeMenuId });
       if (activeMenu) {
         const option = activeMenu.options.find((opt: any) => 
           opt.keyword.toLowerCase() === text || text === opt.label.toLowerCase()
@@ -132,32 +142,32 @@ export class ConversationEngine {
     return this.fallback(state, text, orgId);
   }
 
-  private static async executeMenuOption(state: any, option: any, orgId: string) {
+  private static async executeMenuOption(state: any, option: any, orgId: any) {
     if (option.action === 'NEXT_MENU' && option.targetId) {
-      const nextMenu = await Menu.findById(option.targetId);
+      const nextMenu: any = await convexClient.query(api.chatbot.getMenu, { menuId: option.targetId });
       if (nextMenu) {
-        state.activeMenuId = nextMenu._id;
+        let conversationState = state.conversationState;
         // Optionally update state based on menu title
-        if (nextMenu.title.toLowerCase().includes('services')) state.conversationState = 'SERVICES_MENU';
-        else if (nextMenu.title.toLowerCase().includes('report')) state.conversationState = 'REPORT_MENU';
-        else if (nextMenu.title.toLowerCase().includes('docs')) state.conversationState = 'DOCS_MENU';
-        else if (nextMenu.title.toLowerCase().includes('contact')) state.conversationState = 'CONTACT_MENU';
+        if (nextMenu.title.toLowerCase().includes('services')) conversationState = 'SERVICES_MENU';
+        else if (nextMenu.title.toLowerCase().includes('report')) conversationState = 'REPORT_MENU';
+        else if (nextMenu.title.toLowerCase().includes('docs')) conversationState = 'DOCS_MENU';
+        else if (nextMenu.title.toLowerCase().includes('contact')) conversationState = 'CONTACT_MENU';
         
-        await state.save();
-        return this.sendMenu(state, nextMenu, orgId);
+        await this.updateState(state._id, conversationState, nextMenu._id);
+        return this.sendMenu({...state, activeMenuId: nextMenu._id, conversationState}, nextMenu, orgId);
       }
     } else if (option.action === 'SEND_TEMPLATE' && option.targetId) {
-       const template = await Template.findById(option.targetId);
+       const template: any = await convexClient.query(api.chatbot.getTemplate, { templateId: option.targetId });
        if (template) {
          return enqueueMessage(state.sessionId, state.phoneNumber, template.content); // We will add variable parsing later
        }
     }
   }
 
-  private static async sendMenu(state: any, menu: any, orgId: string, isRoot: boolean = false) {
+  private static async sendMenu(state: any, menu: any, orgId: any, isRoot: boolean = false) {
     let targetMenu = menu;
     if (!targetMenu && isRoot) {
-      targetMenu = await Menu.findOne({ organizationId: orgId, isRoot: true, active: true });
+      targetMenu = await convexClient.query(api.chatbot.getRootMenu, { organizationId: orgId });
     }
 
     if (!targetMenu) {
@@ -167,8 +177,7 @@ export class ConversationEngine {
 
     console.log(`FLOW_FOUND: ${targetMenu.title}`);
     
-    state.activeMenuId = targetMenu._id;
-    await state.save();
+    await this.updateState(state._id, state.conversationState, targetMenu._id);
     console.log('STATE_UPDATED');
 
     let text = `${targetMenu.title}\n\n${targetMenu.content}\n\n`;
@@ -180,7 +189,7 @@ export class ConversationEngine {
     console.log('MESSAGE_SENT');
   }
 
-  private static async fallback(state: any, text: string, orgId: string) {
+  private static async fallback(state: any, text: string, orgId: any) {
     await this.logAnalytics(orgId, state.phoneNumber, state.sessionId, 'FAILED_INPUT', { input: text });
     const aiResponse = await GeminiFallback.generateReply(text, orgId);
     if (aiResponse) {
@@ -188,50 +197,48 @@ export class ConversationEngine {
     }
     
     // Recovery Mode
-    state.conversationState = 'RECOVERY_MODE';
-    await state.save();
+    await this.updateState(state._id, 'RECOVERY_MODE', state.activeMenuId);
     
     const recoveryText = `❌ I didn't understand.\n\n1️⃣ Main Menu\n2️⃣ Continue Previous Conversation\n3️⃣ Exit\n\n💬 Reply with a number.`;
     return enqueueMessage(state.sessionId, state.phoneNumber, recoveryText);
   }
 
-  private static async handleRecoveryMode(state: any, text: string, orgId: string) {
+  private static async handleRecoveryMode(state: any, text: string, orgId: any) {
     if (text === '1') {
-      state.conversationState = 'MAIN_MENU';
-      await state.save();
+      await this.updateState(state._id, 'MAIN_MENU');
       return this.sendMenu(state, null, orgId, true);
     } else if (text === '2') {
-      state.conversationState = 'ACTIVE';
-      await state.save();
+      await this.updateState(state._id, 'ACTIVE', state.activeMenuId);
       if (state.activeMenuId) {
-        const menu = await Menu.findById(state.activeMenuId);
+        const menu = await convexClient.query(api.chatbot.getMenu, { menuId: state.activeMenuId });
         return this.sendMenu(state, menu, orgId);
       } else {
         return this.sendMenu(state, null, orgId, true);
       }
     } else if (text === '3') {
-      state.conversationState = 'EXIT';
-      await state.save();
+      await this.updateState(state._id, 'EXIT');
       return enqueueMessage(state.sessionId, state.phoneNumber, '✅ Session closed.');
     } else {
       return enqueueMessage(state.sessionId, state.phoneNumber, `Please reply with 1, 2, or 3.\n\n1️⃣ Main Menu\n2️⃣ Continue\n3️⃣ Exit`);
     }
   }
 
-  private static async handleAIMode(state: any, text: string, orgId: string) {
+  private static async handleAIMode(state: any, text: string, orgId: any) {
      const aiResponse = await GeminiFallback.generateReply(text, orgId);
      return enqueueMessage(state.sessionId, state.phoneNumber, aiResponse || 'AI is currently unavailable.');
   }
 
   private static async logAnalytics(
-    orgId: string, 
+    orgId: any, 
     phoneNumber: string, 
     sessionId: string, 
-    event: 'NEW_CONVERSATION' | 'MENU_USAGE' | 'FAILED_INPUT' | 'KEYWORD_MATCH', 
+    event: string, 
     metadata: any = {}
   ) {
     try {
-      await AnalyticsLog.create({ organizationId: orgId, phoneNumber, sessionId, event, metadata });
+      await convexClient.mutation(api.chatbot.logAnalytics, {
+        organizationId: orgId, phoneNumber, sessionId, event, metadata
+      });
     } catch (e) {
       console.error('Failed to log analytics:', e);
     }

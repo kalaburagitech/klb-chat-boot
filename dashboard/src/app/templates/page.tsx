@@ -1,39 +1,62 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { api } from '../../utils/api';
+import React, { useState } from 'react';
+import { useQuery, useMutation } from "convex/react";
 
 export default function TemplatesPage() {
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const templates = useQuery("templates:getByOrg" as any, { organizationSlug: 'klb-connect' });
+  const createTemplate = useMutation("templates:createTemplate" as any);
+  const updateTemplate = useMutation("templates:updateTemplate" as any);
+  const deleteTemplate = useMutation("templates:deleteTemplate" as any);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', category: 'MARKETING', content: '' });
 
-  const fetchTemplates = async () => {
-    try {
-      const data = await api.get('/templates');
-      setTemplates(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
+  const loading = templates === undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/templates', formData);
-      setIsModalOpen(false);
-      setFormData({ name: '', category: 'MARKETING', content: '' });
-      fetchTemplates();
+      if (editingId) {
+        await updateTemplate({
+          templateId: editingId,
+          name: formData.name,
+          category: formData.category,
+          content: formData.content,
+        });
+      } else {
+        await createTemplate({
+          organizationSlug: 'klb-connect',
+          ...formData
+        });
+      }
+      closeModal();
     } catch (e: any) {
-      alert(`Failed to create template: ${e.message || e}`);
+      alert(`Failed to save template: ${e.message || e}`);
     }
+  };
+
+  const handleEdit = (tpl: any) => {
+    setEditingId(tpl._id);
+    setFormData({ name: tpl.name, category: tpl.category, content: tpl.content });
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (templateId: string) => {
+    if (confirm("Are you sure you want to delete this template?")) {
+      try {
+        await deleteTemplate({ templateId });
+      } catch (e: any) {
+        alert(`Failed to delete template: ${e.message || e}`);
+      }
+    }
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingId(null);
+    setFormData({ name: '', category: 'MARKETING', content: '' });
   };
 
   return (
@@ -43,7 +66,11 @@ export default function TemplatesPage() {
           <h1 className="page-title">Message Templates</h1>
           <p className="page-subtitle">Manage dynamic text templates for campaigns and auto-replies.</p>
         </div>
-        <button className="btn-primary" onClick={() => setIsModalOpen(true)}>
+        <button className="btn-primary" onClick={() => {
+          setEditingId(null);
+          setFormData({ name: '', category: 'MARKETING', content: '' });
+          setIsModalOpen(true);
+        }}>
           + Create Template
         </button>
       </div>
@@ -61,10 +88,16 @@ export default function TemplatesPage() {
           {templates.map(tpl => (
             <div key={tpl._id} className="card">
               <div className="card-header">
-                <h3 className="card-title">{tpl.name}</h3>
-                <span className={`badge ${tpl.active ? 'badge-active' : 'badge-inactive'}`}>
-                  {tpl.active ? 'Active' : 'Inactive'}
-                </span>
+                <div>
+                  <h3 className="card-title">{tpl.name}</h3>
+                  <span className={`badge ${tpl.active ? 'badge-active' : 'badge-inactive'}`}>
+                    {tpl.active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div className="card-actions">
+                  <button className="btn-icon" onClick={() => handleEdit(tpl)}>✏️</button>
+                  <button className="btn-icon" onClick={() => handleDelete(tpl._id)}>🗑️</button>
+                </div>
               </div>
               <div className="card-meta">Category: {tpl.category}</div>
               <div className="card-body">
@@ -78,7 +111,7 @@ export default function TemplatesPage() {
       {isModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content">
-            <h2>Create Template</h2>
+            <h2>{editingId ? "Edit Template" : "Create Template"}</h2>
             <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label>Template Name</label>
@@ -112,8 +145,8 @@ export default function TemplatesPage() {
                 />
               </div>
               <div className="modal-actions">
-                <button type="button" className="btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn-primary">Save Template</button>
+                <button type="button" className="btn-secondary" onClick={closeModal}>Cancel</button>
+                <button type="submit" className="btn-primary">{editingId ? "Update Template" : "Save Template"}</button>
               </div>
             </form>
           </div>
@@ -133,10 +166,14 @@ export default function TemplatesPage() {
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
         
         .card { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-        .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
-        .card-title { margin: 0; font-size: 1.1rem; color: var(--text-main); font-weight: 600; }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+        .card-title { margin: 0 0 8px; font-size: 1.1rem; color: var(--text-main); font-weight: 600; }
         .card-meta { font-size: 0.8rem; color: var(--text-muted); }
         .card-body pre { background: rgba(0,0,0,0.2); padding: 12px; border-radius: 6px; font-size: 0.85rem; color: var(--text-main); white-space: pre-wrap; font-family: inherit; margin: 0; }
+        
+        .card-actions { display: flex; gap: 4px; }
+        .btn-icon { background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 6px; padding: 6px; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
+        .btn-icon:hover { background: rgba(255,255,255,0.1); transform: translateY(-1px); }
         
         .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
         .badge-active { background: rgba(74, 222, 128, 0.2); color: #4ade80; }

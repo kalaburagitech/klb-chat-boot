@@ -1,129 +1,44 @@
 'use client';
 
-import React, { useEffect, useState, use, useCallback } from 'react';
-import { getSocket } from '@/utils/socket';
+import React, { useState, use } from 'react';
 import Link from 'next/link';
+import { useQuery, useMutation } from "convex/react";
 
 export default function SessionDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [qr, setQr] = useState<string | null>(null);
-  const [status, setStatus] = useState<string>('INITIALIZING');
+  const session = useQuery("sessions:getSession" as any, { sessionId: id });
+  const initSessionMutation = useMutation("sessions:initSession" as any);
+  const deleteSessionMutation = useMutation("sessions:deleteSession" as any);
+  
   const [logs, setLogs] = useState<string[]>([]);
-  const [timeLeft, setTimeLeft] = useState(60);
-  const [error, setError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  const addLog = useCallback((msg: string) => {
-    setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50));
-  }, []);
-
-  const fetchStatus = useCallback(async () => {
-    try {
-      let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005';
-      if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-        backendUrl = 'https://klb-chat-boot-production.up.railway.app';
-      }
-      
-      const res = await fetch(`${backendUrl}/api/whatsapp/sessions/klb-connect`);
-      const sessions = await res.json();
-      const session = sessions.find((s: any) => s.sessionId === id);
-      
-      if (session) {
-        setStatus(session.status);
-        if (session.status === 'READY') {
-          addLog('Session is READY.');
-          setQr(null);
-        } else if (session.status === 'FAILED') {
-          setError(session.error || 'Connection failed');
-        }
-      }
-
-      // Re-trigger init if it's not active in memory but marked as QR_READY or FAILED
-      await fetch(`${backendUrl}/api/whatsapp/sessions/${id}/init`, {
-        method: 'POST'
-      });
-      
-    } catch (err) {
-      console.error('Failed to sync status:', err);
+  // We keep a local fallback for the timer
+  const [timeLeft, setTimeLeft] = useState(60);
+  
+  // React to QR updates to reset timer
+  React.useEffect(() => {
+    if (session?.qrCode) {
+      setTimeLeft(60);
     }
-  }, [id, addLog]);
+  }, [session?.qrCode]);
 
-  useEffect(() => {
-    const socket = getSocket();
-    const sessionId = id;
-    const orgId = 'klb-connect'; 
-    socket.emit('join:org', orgId);
-
-    fetchStatus();
-
-    socket.on('whatsapp:qr', (data: any) => {
-      if (data.sessionId === sessionId) {
-        setQr(data.qr);
-        setStatus('QR_READY');
-        setTimeLeft(60);
-        addLog('QR Code received. Please scan.');
-      }
-    });
-
-    socket.on('whatsapp:authenticated', (data: any) => {
-      if (data.sessionId === sessionId) {
-        setStatus('AUTHENTICATED');
-        setQr(null);
-        addLog('Authenticated! Preparing session...');
-      }
-    });
-
-    socket.on('whatsapp:ready', (data: any) => {
-      if (data.sessionId === sessionId) {
-        setQr(null);
-        setStatus('READY');
-        addLog('WhatsApp session is READY!');
-      }
-    });
-
-    socket.on('whatsapp:status', (data: any) => {
-      if (data.sessionId === sessionId) {
-        setStatus(data.status);
-        if (data.status === 'FAILED') {
-          setError(data.error || 'Connection failed');
-          addLog(`Error: ${data.error || 'Connection failed'}`);
-        }
-      }
-    });
-
-    socket.on('whatsapp:disconnected', (data: any) => {
-      if (data.sessionId === sessionId) {
-        setStatus('DISCONNECTED');
-        addLog(`Disconnected: ${data.reason}`);
-      }
-    });
-
+  React.useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
     }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-    return () => {
-      socket.off('whatsapp:qr');
-      socket.off('whatsapp:ready');
-      socket.off('whatsapp:authenticated');
-      socket.off('whatsapp:status');
-      socket.off('whatsapp:disconnected');
-      clearInterval(timer);
-    };
-  }, [id, fetchStatus, addLog]);
+  const addLog = (msg: string) => {
+    setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50));
+  };
 
   const retryInit = async () => {
-    setStatus('INITIALIZING');
-    setError(null);
-    setQr(null);
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005';
-      await fetch(`${backendUrl}/api/whatsapp/sessions/${id}/init`, {
-        method: 'POST'
-      });
+      await initSessionMutation({ sessionId: id });
       addLog('Retrying session initialization...');
     } catch (err) {
-      setError('Failed to reach server');
       addLog('Retry failed: Could not reach server');
     }
   };
@@ -131,15 +46,16 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
   const deleteSession = async () => {
     if (!confirm('Are you sure you want to delete this session?')) return;
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005';
-      await fetch(`${backendUrl}/api/whatsapp/sessions/${id}`, {
-        method: 'DELETE',
-      });
+      await deleteSessionMutation({ organizationSlug: 'klb-connect', sessionId: id });
       window.location.href = '/sessions';
     } catch (err) {
       alert('Delete failed');
     }
   };
+
+  const status = session?.status || 'INITIALIZING';
+  const qr = session?.qrCode;
+  const error = null; // No explicit error field in schema right now
 
   return (
     <div className="animate-fade-in session-details">
@@ -162,7 +78,6 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
           <div className="title-section" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: 0 }}>Session: {id}</h1>
             <span className={`badge ${status === 'READY' ? 'badge-success' : status === 'FAILED' ? 'badge-danger' : 'badge-warning'}`}>{status}</span>
-            <button onClick={fetchStatus} className="btn-sync" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-muted)', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer' }}>↻ Sync Status</button>
           </div>
           <p style={{ color: 'var(--text-muted)', margin: '8px 0 0' }}>Manage your enterprise WhatsApp connection and automation.</p>
         </div>

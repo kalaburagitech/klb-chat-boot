@@ -1,25 +1,22 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { api } from '../../utils/api';
+import React from 'react';
+import { useQuery } from "convex/react";
 
 export default function AnalyticsPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const statsResponse = useQuery("sessions:getStats" as any, { organizationSlug: 'klb-connect' });
 
-  useEffect(() => {
-    const fetchAnalytics = async () => {
-      try {
-        const result = await api.get('/analytics');
-        setData(result);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAnalytics();
-  }, []);
+  const loading = statsResponse === undefined;
+  
+  // Transform to match old format temporarily
+  const data = statsResponse ? {
+    metrics: {
+      totalConversations: statsResponse.totalLeads || 0,
+      failedInputs: 0,
+      menuUsage: [],
+      keywords: []
+    }
+  } : null;
 
   return (
     <div className="page-container animate-fade-in">

@@ -1,43 +1,29 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { api } from '../../utils/api';
+import React, { useState } from 'react';
+import { useQuery, useMutation } from "convex/react";
 
 export default function RulesPage() {
-  const [rules, setRules] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const rules = useQuery("rules:getByOrg" as any, { organizationSlug: 'klb-connect' });
+  const templates = useQuery("templates:getByOrg" as any, { organizationSlug: 'klb-connect' });
+  const createRule = useMutation("rules:createRule" as any);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ 
-    keyword: '', 
-    matchType: 'EXACT', 
-    replyType: 'TEXT', 
-    replyContent: '' 
-  });
+  const [formData, setFormData] = useState({ sessionId: '', trigger: '', type: 'TEXT', response: '' });
 
-  const fetchRules = async () => {
-    try {
-      const data = await api.get('/rules');
-      setRules(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchRules();
-  }, []);
+  const loading = rules === undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/rules', formData);
+      await createRule({
+        organizationSlug: 'klb-connect',
+        ...formData
+      });
       setIsModalOpen(false);
-      setFormData({ keyword: '', matchType: 'EXACT', replyType: 'TEXT', replyContent: '' });
-      fetchRules();
-    } catch (e) {
-      alert('Failed to create rule');
+      setFormData({ sessionId: '', trigger: '', type: 'TEXT', response: '' });
+    } catch (e: any) {
+      alert(`Failed to create rule: ${e.message || e}`);
     }
   };
 
@@ -75,18 +61,20 @@ export default function RulesPage() {
             <tbody>
               {rules.map(rule => (
                 <tr key={rule._id}>
-                  <td><strong>{rule.keyword}</strong></td>
-                  <td><span className="badge badge-neutral">{rule.matchType}</span></td>
+                  <td><strong>{rule.trigger}</strong></td>
+                  <td><span className="badge badge-neutral">EXACT</span></td>
                   <td>
-                    {rule.replyType === 'TEXT' ? (
-                      <span className="text-preview">{rule.replyContent.substring(0, 40)}...</span>
+                    {rule.type === 'TEXT' ? (
+                      <span className="text-preview">{rule.response.substring(0, 40)}...</span>
+                    ) : rule.type === 'TEMPLATE' ? (
+                      <span className="badge badge-info">Template ID: {rule.response}</span>
                     ) : (
-                      <span className="badge badge-info">{rule.replyType}</span>
+                      <span className="badge badge-info">{rule.type}</span>
                     )}
                   </td>
                   <td>
-                    <span className={`badge ${rule.active ? 'badge-active' : 'badge-inactive'}`}>
-                      {rule.active ? 'Active' : 'Inactive'}
+                    <span className={`badge ${rule.enabled ? 'badge-active' : 'badge-inactive'}`}>
+                      {rule.enabled ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                 </tr>
@@ -105,28 +93,18 @@ export default function RulesPage() {
                 <label>Trigger Keyword</label>
                 <input 
                   type="text" 
-                  value={formData.keyword} 
-                  onChange={e => setFormData({...formData, keyword: e.target.value})} 
+                  value={formData.trigger} 
+                  onChange={e => setFormData({...formData, trigger: e.target.value})} 
                   placeholder="e.g. pricing"
                   required
                 />
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Match Logic</label>
-                  <select 
-                    value={formData.matchType} 
-                    onChange={e => setFormData({...formData, matchType: e.target.value})}
-                  >
-                    <option value="EXACT">Exact Match</option>
-                    <option value="CONTAINS">Contains Keyword</option>
-                  </select>
-                </div>
-                <div className="form-group">
                   <label>Action Type</label>
                   <select 
-                    value={formData.replyType} 
-                    onChange={e => setFormData({...formData, replyType: e.target.value})}
+                    value={formData.type} 
+                    onChange={e => setFormData({...formData, type: e.target.value})}
                   >
                     <option value="TEXT">Send Text</option>
                     <option value="TEMPLATE">Send Template</option>
@@ -135,16 +113,32 @@ export default function RulesPage() {
                 </div>
               </div>
               
-              {formData.replyType === 'TEXT' && (
+              {formData.type === 'TEXT' && (
                 <div className="form-group">
                   <label>Reply Message</label>
                   <textarea 
                     rows={4}
-                    value={formData.replyContent} 
-                    onChange={e => setFormData({...formData, replyContent: e.target.value})}
+                    value={formData.response} 
+                    onChange={e => setFormData({...formData, response: e.target.value})}
                     placeholder="Enter the automated response..."
                     required
                   />
+                </div>
+              )}
+
+              {formData.type === 'TEMPLATE' && (
+                <div className="form-group">
+                  <label>Select Template</label>
+                  <select 
+                    value={formData.response} 
+                    onChange={e => setFormData({...formData, response: e.target.value})}
+                    required
+                  >
+                    <option value="" disabled>Select a template...</option>
+                    {templates?.map((tpl: any) => (
+                      <option key={tpl._id} value={tpl._id}>{tpl.name}</option>
+                    ))}
+                  </select>
                 </div>
               )}
 

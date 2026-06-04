@@ -11,6 +11,7 @@ export const metadata: Metadata = {
 };
 
 import Sidebar from '@/components/Sidebar';
+import ConvexClientProvider from '@/components/ConvexClientProvider';
 
 export default function RootLayout({
   children,
@@ -20,10 +21,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className} suppressHydrationWarning={true}>
-        <Sidebar />
-        <main className="main-content">
-          {children}
-        </main>
+        <ConvexClientProvider>
+          <Sidebar />
+          <main className="main-content">
+            {children}
+          </main>
+        </ConvexClientProvider>
       </body>
     </html>
   );

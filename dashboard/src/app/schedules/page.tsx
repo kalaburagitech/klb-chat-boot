@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { api } from '../../utils/api';
+import React, { useState } from 'react';
+import { useQuery, useMutation } from "convex/react";
 
 export default function SchedulesPage() {
-  const [schedules, setSchedules] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const schedules = useQuery("schedules:getByOrg" as any, { organizationSlug: 'klb-connect' });
+  const createSchedule = useMutation("schedules:createSchedule" as any);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ 
     jobName: '', 
@@ -14,30 +15,22 @@ export default function SchedulesPage() {
     content: '' 
   });
 
-  const fetchSchedules = async () => {
-    try {
-      const data = await api.get('/schedules');
-      setSchedules(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchSchedules();
-  }, []);
+  const loading = schedules === undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/schedules', formData);
+      await createSchedule({
+        organizationSlug: 'klb-connect',
+        name: formData.jobName,
+        type: 'ONCE',
+        targetGroup: formData.targetType,
+        messageContent: formData.content
+      });
       setIsModalOpen(false);
       setFormData({ jobName: '', targetType: 'BROADCAST', scheduledAt: '', content: '' });
-      fetchSchedules();
-    } catch (e) {
-      alert('Failed to create schedule');
+    } catch (e: any) {
+      alert(`Failed to create schedule: ${e.message || e}`);
     }
   };
 
@@ -66,18 +59,18 @@ export default function SchedulesPage() {
           {schedules.map(schedule => (
             <div key={schedule._id} className="card">
               <div className="card-header">
-                <h3 className="card-title">{schedule.jobName}</h3>
-                <span className={`badge ${schedule.status === 'PENDING' ? 'badge-warning' : 'badge-active'}`}>
-                  {schedule.status}
+                <h3 className="card-title">{schedule.name}</h3>
+                <span className={`badge ${schedule.active ? 'badge-active' : 'badge-inactive'}`}>
+                  {schedule.active ? 'ACTIVE' : 'INACTIVE'}
                 </span>
               </div>
               <div className="card-meta">
-                Scheduled for: {new Date(schedule.scheduledAt).toLocaleString()}
+                Scheduled for: {schedule.executeAt ? new Date(schedule.executeAt).toLocaleString() : 'N/A'}
               </div>
               <div className="card-body">
-                <span className="badge badge-neutral">{schedule.targetType}</span>
+                <span className="badge badge-neutral">{schedule.targetGroup}</span>
                 <p style={{ marginTop: '12px', fontSize: '0.9rem', color: 'var(--text-main)' }}>
-                  {schedule.content ? schedule.content : 'No text content attached.'}
+                  {schedule.messageContent ? schedule.messageContent : 'No text content attached.'}
                 </p>
               </div>
             </div>

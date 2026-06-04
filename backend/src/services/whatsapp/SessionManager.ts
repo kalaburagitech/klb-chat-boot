@@ -1,14 +1,26 @@
 import { Client } from 'whatsapp-web.js';
 import { ClientFactory } from './ClientFactory';
-import WhatsAppSession, { SessionStatus } from '../../models/WhatsAppSession';
 import { Server } from 'socket.io';
 import QRCode from 'qrcode';
 import { enqueueIncoming } from '../queue/MessageQueue';
+import { convex, convexClient } from '../../utils/convex';
+import { api } from '../../../convex/_generated/api';
+
+enum SessionStatus {
+  INITIALIZING = 'INITIALIZING',
+  QR_READY = 'QR_READY',
+  AUTHENTICATED = 'AUTHENTICATED',
+  READY = 'READY',
+  FAILED = 'FAILED',
+  DISCONNECTED = 'DISCONNECTED'
+}
 
 export class SessionManager {
   private clients: Map<string, Client> = new Map();
   private qrCodes: Map<string, string> = new Map();
+  private initializing: Set<string> = new Set();
   private io: Server | null = null;
+  private unsubscribe: (() => void) | null = null;
 
   constructor(io?: Server) {
     if (io) this.io = io;
@@ -19,57 +31,69 @@ export class SessionManager {
   }
 
   async initAllSessions() {
-    const sessions = await WhatsAppSession.find({ status: SessionStatus.READY });
-    console.log(`[INIT] Found ${sessions.length} READY sessions to restore.`);
+    console.log(`[INIT] Ready to initialize sessions via Convex subscriptions.`);
     
-    for (const session of sessions) {
-      try {
-        console.log(`[INIT] Staggering initialization for ${session.sessionId}...`);
-        await this.initializeSession('klb-connect', session.sessionId);
-        // Wait 5 seconds between each session to prevent Puppeteer resource spikes
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      } catch (error) {
-        console.error(`[INIT] Failed to restore session ${session.sessionId}:`, error);
+    // Subscribe to all sessions
+    this.unsubscribe = convexClient.onUpdate(
+      api.sessions.getAllSessions,
+      {},
+      (sessions) => {
+        for (const session of sessions) {
+          // If a session requires initialization OR is already READY/AUTHENTICATED (so we boot it back up on server restart)
+          if (
+            session.status === SessionStatus.INITIALIZING || 
+            session.status === SessionStatus.READY || 
+            session.status === SessionStatus.AUTHENTICATED
+          ) {
+            // We pass a hardcoded org slug for now, but really we should get it from the session
+            // In a real app we'd query the org details here if needed.
+            this.initializeSession('klb-connect', session.sessionId);
+          }
+        }
+      },
+      (error) => {
+        console.error("Failed to subscribe to sessions from Convex:", error);
       }
-    }
+    );
   }
 
   async initializeSession(orgSlug: string, sessionId: string) {
-    if (this.clients.has(sessionId)) {
-      console.log(`Session ${sessionId} already active`);
-      
-      // If we already have a QR code for this active session, emit it again
-      const storedQr = this.qrCodes.get(sessionId);
-      if (storedQr) {
-        this.io?.to(orgSlug).emit('whatsapp:qr', { sessionId, qr: storedQr });
-      }
+    if (this.clients.has(sessionId) || this.initializing.has(sessionId)) {
+      console.log(`Session ${sessionId} already active or initializing`);
       return;
     }
 
-    const client = await ClientFactory.createClient(sessionId);
-    this.clients.set(sessionId, client);
+    this.initializing.add(sessionId);
 
-    this.setupEventListeners(client, orgSlug, sessionId);
-    
-    console.log(`Initializing client for session: ${sessionId}`);
-    client.initialize().catch(err => {
-      console.error('=========================================');
-      console.error(`❌ FAILED TO INITIALIZE WHATSAPP: ${sessionId}`);
+    try {
+      const client = await ClientFactory.createClient(sessionId);
+      this.clients.set(sessionId, client);
+
+      this.setupEventListeners(client, orgSlug, sessionId);
       
-      if (err.message.includes('detached') || err.message.includes('closed')) {
-        console.error('⚠️ PUPPETEER ERROR: Browser was closed or frame detached.');
-      } else {
-        console.error(err);
-      }
-      
-      console.error('=========================================');
-      this.updateSessionStatus(sessionId, SessionStatus.FAILED);
-      this.io?.to(orgSlug).emit('whatsapp:status', { sessionId, status: SessionStatus.FAILED, error: err.message });
-      
-      // Clean up the client to prevent leaks
-      client.destroy().catch(() => {});
-      this.clients.delete(sessionId);
-    });
+      console.log(`Initializing client for session: ${sessionId}`);
+      client.initialize().catch(err => {
+        console.error('=========================================');
+        console.error(`❌ FAILED TO INITIALIZE WHATSAPP: ${sessionId}`);
+        
+        if (err.message.includes('detached') || err.message.includes('closed')) {
+          console.error('⚠️ PUPPETEER ERROR: Browser was closed or frame detached.');
+        } else {
+          console.error(err);
+        }
+        
+        console.error('=========================================');
+        this.updateSessionStatus(sessionId, SessionStatus.FAILED, undefined, err.message);
+        
+        client.destroy().catch(() => {});
+        this.clients.delete(sessionId);
+        this.initializing.delete(sessionId);
+      });
+    } catch (e: any) {
+      console.error(`Failed to create client for ${sessionId}:`, e);
+      this.initializing.delete(sessionId);
+      this.updateSessionStatus(sessionId, SessionStatus.FAILED, undefined, e.message);
+    }
   }
 
   private setupEventListeners(client: Client, orgSlug: string, sessionId: string) {
@@ -78,9 +102,7 @@ export class SessionManager {
       try {
         const qrImage = await QRCode.toDataURL(qr);
         this.qrCodes.set(sessionId, qrImage);
-        this.updateSessionStatus(sessionId, SessionStatus.QR_READY);
-        this.io?.to(orgSlug).emit('whatsapp:status', { sessionId, status: SessionStatus.QR_READY });
-        this.io?.to(orgSlug).emit('whatsapp:qr', { sessionId, qr: qrImage });
+        this.updateSessionStatus(sessionId, SessionStatus.QR_READY, qrImage);
       } catch (err) {
         console.error(`Failed to generate QR image for ${sessionId}:`, err);
       }
@@ -89,9 +111,7 @@ export class SessionManager {
     client.on('authenticated', () => {
       console.log(`🔓 Session ${sessionId} AUTHENTICATED successfully. Waiting for ready...`);
       this.qrCodes.delete(sessionId);
-      this.updateSessionStatus(sessionId, SessionStatus.AUTHENTICATED);
-      this.io?.to(orgSlug).emit('whatsapp:status', { sessionId, status: SessionStatus.AUTHENTICATED });
-      this.io?.to(orgSlug).emit('whatsapp:authenticated', { sessionId });
+      this.updateSessionStatus(sessionId, SessionStatus.AUTHENTICATED, null);
     });
 
     client.on('ready', () => {
@@ -100,38 +120,25 @@ export class SessionManager {
       console.log(`📱 CONNECTED AND LISTENING FOR MESSAGES`);
       console.log('=========================================');
       this.qrCodes.delete(sessionId);
-      this.updateSessionStatus(sessionId, SessionStatus.READY);
-      this.io?.to(orgSlug).emit('whatsapp:status', { sessionId, status: SessionStatus.READY });
-      this.io?.to(orgSlug).emit('whatsapp:ready', { sessionId });
+      this.updateSessionStatus(sessionId, SessionStatus.READY, null);
     });
 
     client.on('auth_failure', (msg) => {
       console.error(`Auth failure for ${sessionId}:`, msg);
-      this.updateSessionStatus(sessionId, SessionStatus.FAILED);
-      this.io?.to(orgSlug).emit('whatsapp:auth_failure', { sessionId, message: msg });
+      this.updateSessionStatus(sessionId, SessionStatus.FAILED, undefined, msg);
     });
 
     client.on('disconnected', (reason) => {
       console.log(`Session ${sessionId} disconnected:`, reason);
       this.updateSessionStatus(sessionId, SessionStatus.DISCONNECTED);
-      this.io?.to(orgSlug).emit('whatsapp:disconnected', { sessionId, reason });
       this.clients.delete(sessionId);
     });
 
-    // RELIABLE MESSAGE LISTENER
     client.on('message_create', async (message) => {
       if (message.fromMe) return; 
       
       console.log(`📩 [WHATSAPP] New message from ${message.from}: "${message.body}"`);
 
-      // 1. Emit to Dashboard
-      this.io?.to(orgSlug).emit('whatsapp:message', { 
-        sessionId, 
-        from: message.from, 
-        body: message.body 
-      });
-
-      // 2. Process via Queue and Conversation Engine
       try {
         await enqueueIncoming(sessionId, {
           from: message.from,
@@ -143,12 +150,20 @@ export class SessionManager {
     });
   }
 
-  private async updateSessionStatus(sessionId: string, status: SessionStatus) {
-    await WhatsAppSession.findOneAndUpdate({ sessionId }, { 
-      status, 
-      lastActive: new Date() 
-    });
+  private async updateSessionStatus(sessionId: string, status: SessionStatus, qrCode?: string | null, error?: string) {
+    try {
+      await convex.mutation(api.sessions.updateSessionStatus, {
+        sessionId,
+        status,
+        qrCode: qrCode === null ? undefined : qrCode,
+        error
+      });
+    } catch (err) {
+      console.error(`Failed to sync status to Convex for ${sessionId}:`, err);
+    }
   }
+
+
 
   async destroySession(sessionId: string, orgSlug: string) {
     const client = this.clients.get(sessionId);
@@ -185,12 +200,12 @@ export class SessionManager {
       this.clients.delete(sessionId);
       this.qrCodes.delete(sessionId);
 
-      // 5. Delete from MongoDB
-      await WhatsAppSession.deleteOne({ sessionId });
-
-      // 6. Emit real-time deletion event
-      this.io?.to(orgSlug).emit('whatsapp:status', { sessionId, status: SessionStatus.DISCONNECTED });
-      this.io?.to(orgSlug).emit('whatsapp:deleted', { sessionId });
+      // 5. Delete from Convex
+      try {
+        await convex.mutation(api.sessions.deleteSession, { organizationSlug: orgSlug, sessionId });
+      } catch (e) {
+        console.error('Failed to delete from convex', e);
+      }
 
       console.log(`[CLEANUP] Session ${sessionId} fully removed from system.`);
     }

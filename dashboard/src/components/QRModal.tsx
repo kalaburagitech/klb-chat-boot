@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { getSocket } from '@/utils/socket';
+import { useQuery, useMutation } from "convex/react";
 
 interface QRModalProps {
   sessionId: string;
@@ -10,67 +10,36 @@ interface QRModalProps {
 }
 
 export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
-  const [qr, setQr] = useState<string | null>(null);
-  const [status, setStatus] = useState<'LOADING' | 'QR' | 'WAITING_FOR_SCAN' | 'AUTHENTICATING' | 'CONNECTED' | 'FAILED'>('LOADING');
+  const session = useQuery("sessions:getSession" as any, { sessionId });
+  const initSession = useMutation("sessions:initSession" as any);
   const [timeLeft, setTimeLeft] = useState(60);
 
   useEffect(() => {
     if (!isOpen) return;
+    
+    // Trigger initialization when modal opens and session is not yet active
+    if (session && session.status !== "INITIALIZING" && session.status !== "QR_READY" && session.status !== "READY" && session.status !== "AUTHENTICATED") {
+      initSession({ sessionId }).catch(console.error);
+    }
+  }, [isOpen, session?.status, sessionId, initSession]);
 
-    const socket = getSocket();
-    socket.emit('join:org', 'klb-connect');
-    setQr(null);
-    setStatus('LOADING');
+  useEffect(() => {
+    if (!isOpen) return;
 
-    // Trigger session initialization on backend
-    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005'}/api/whatsapp/sessions/${sessionId}/init`, {
-      method: 'POST'
-    })
-      .catch(err => console.error('Failed to trigger session init:', err));
+    if (session?.status === 'READY') {
+      setTimeout(onClose, 2000);
+    }
 
-    const handleQr = (data: { sessionId: string; qr: string }) => {
-      if (data.sessionId === sessionId) {
-        setQr(data.qr);
-        setStatus('QR');
-        setTimeLeft(60); // Reset timer on new QR
-        setTimeout(() => setStatus('WAITING_FOR_SCAN'), 2000);
-      }
-    };
-
-    const handleStatus = (data: { sessionId: string; status: string }) => {
-      if (data.sessionId === sessionId) {
-        if (data.status === 'READY') {
-          setStatus('CONNECTED');
-          setTimeout(onClose, 2000);
-        } else if (data.status === 'AUTHENTICATED') {
-          setStatus('AUTHENTICATING');
-        } else if (data.status === 'FAILED') {
-          setStatus('FAILED');
-        }
-      }
-    };
-
-    const handleAuth = (data: { sessionId: string }) => {
-      if (data.sessionId === sessionId) {
-        setStatus('AUTHENTICATING');
-      }
-    };
-
-    socket.on('whatsapp:qr', handleQr);
-    socket.on('whatsapp:status', handleStatus);
-    socket.on('whatsapp:authenticated', handleAuth);
+    if (session?.qrCode) {
+      setTimeLeft(60); // Reset timer when QR updates
+    }
 
     const timer = setInterval(() => {
       setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
     }, 1000);
 
-    return () => {
-      socket.off('whatsapp:qr', handleQr);
-      socket.off('whatsapp:status', handleStatus);
-      socket.off('whatsapp:authenticated', handleAuth);
-      clearInterval(timer);
-    };
-  }, [isOpen, sessionId, onClose]);
+    return () => clearInterval(timer);
+  }, [isOpen, session?.status, session?.qrCode, onClose]);
 
   if (!isOpen) return null;
 
@@ -86,17 +55,17 @@ export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
         </div>
 
         <div className="qr-box">
-          {status === 'LOADING' && (
+          {(!session || session.status === 'INITIALIZING') && (
             <div className="loading-container">
               <div className="spinner"></div>
               <p style={{ marginTop: '20px', color: 'var(--text-muted)' }}>Initializing Secure Engine...</p>
             </div>
           )}
 
-          {(status === 'QR' || status === 'WAITING_FOR_SCAN') && qr && (
+          {session?.status === 'QR_READY' && session.qrCode && (
             <div className="animate-fade-in">
               <div style={{ background: 'white', padding: '16px', borderRadius: '16px', display: 'inline-block', marginBottom: '24px', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)' }}>
-                <img src={qr} alt="WhatsApp QR" style={{ width: '256px', height: '256px', display: 'block' }} />
+                <img src={session.qrCode} alt="WhatsApp QR" style={{ width: '256px', height: '256px', display: 'block' }} />
               </div>
               
               <div style={{ textAlign: 'left', background: 'rgba(255,255,255,0.05)', padding: '20px', borderRadius: '12px', marginBottom: '24px' }}>
@@ -115,15 +84,15 @@ export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                <span className={`status-dot ${status === 'WAITING_FOR_SCAN' ? 'pulse' : ''}`}></span>
+                <span className="status-dot pulse"></span>
                 <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--primary)' }}>
-                  {status === 'WAITING_FOR_SCAN' ? 'WAITING FOR SCAN...' : 'SYNCING WITH WHATSAPP...'}
+                  WAITING FOR SCAN...
                 </p>
               </div>
             </div>
           )}
 
-          {status === 'AUTHENTICATING' && (
+          {session?.status === 'AUTHENTICATED' && (
             <div className="animate-fade-in" style={{ padding: '40px 0' }}>
               <div className="success-icon" style={{ background: '#34b7f1' }}>🔓</div>
               <h3 style={{ color: '#34b7f1', fontWeight: 700, fontSize: '1.5rem', marginTop: '16px' }}>Connected!</h3>
@@ -132,7 +101,7 @@ export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
             </div>
           )}
 
-          {status === 'CONNECTED' && (
+          {session?.status === 'READY' && (
             <div className="animate-fade-in" style={{ padding: '40px 0' }}>
               <div className="success-icon">✓</div>
               <h3 style={{ color: 'var(--primary)', fontWeight: 700, fontSize: '1.5rem', marginTop: '16px' }}>Linked Successfully!</h3>
@@ -140,7 +109,7 @@ export default function QRModal({ sessionId, isOpen, onClose }: QRModalProps) {
             </div>
           )}
 
-          {status === 'FAILED' && (
+          {session?.status === 'FAILED' && (
             <div className="animate-fade-in" style={{ padding: '40px 0' }}>
               <div className="error-icon">!</div>
               <h3 style={{ color: '#ef4444', fontWeight: 700, fontSize: '1.5rem', marginTop: '16px' }}>Connection Failed</h3>

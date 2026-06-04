@@ -11,7 +11,7 @@ import morgan from 'morgan';
 import { sessionManager } from './services/whatsapp/SessionManager';
 import { SeedService } from './services/utils/SeedService';
 import whatsappRoutes from './routes/whatsappRoutes';
-import './services/queue/MessageQueue'; // Initialize workers
+// import './services/queue/MessageQueue'; // Disable Redis for now during Convex migration
 
 // --- CRITICAL ERROR HANDLING (PREVENT CRASHES) ---
 process.on('uncaughtException', (err: any) => {
@@ -102,8 +102,9 @@ io.on('connection', (socket) => {
   });
 });
 
-// Initialize Session Manager with IO
+// Initialize Session Manager
 sessionManager.setIo(io);
+sessionManager.initAllSessions();
 
 // Database Connection
 mongoose.set('debug', true);
@@ -115,39 +116,21 @@ const mongooseOptions = {
   serverSelectionTimeoutMS: 10000,
 };
 
-mongoose.connect(MONGODB_URI, mongooseOptions)
-  .then(async () => {
-    console.log('Connected to MongoDB');
-
-    // Seed initial flows
-    await SeedService.seedKlbFlows();
-
-    // Start Server Instantly (To satisfy Railway Health Check)
-    server.listen(Number(PORT), '0.0.0.0', () => {
-      console.log('=========================================');
-      console.log(`🚀 KLB BACKEND RUNNING ON PORT: ${PORT}`);
-      console.log(`📡 CORS ORIGIN: ${process.env.DASHBOARD_URL || '*'}`);
-      console.log('=========================================');
-      
-      // Start heavy sessions in background AFTER server is listening
-      console.log('Starting session initialization in background...');
-      sessionManager.initAllSessions()
-        .then(() => console.log('✅ All sessions initialized in background.'))
-        .catch(err => console.error('❌ Error in background session initialization:', err));
-        
-    }).on('error', (err: any) => {
-      if (err.code === 'EADDRINUSE') {
-        console.error(`❌ PORT ${PORT} IS ALREADY IN USE. PLEASE KILL THE PROCESS.`);
-        process.exit(1);
-      } else {
-        console.error('❌ SERVER ERROR:', err);
-      }
-    });
-  })
-  .catch(err => {
-    console.error('MongoDB connection error:', err);
+// Bypass MongoDB for now and start the server so the frontend doesn't get a connection error
+server.listen(Number(PORT), '0.0.0.0', () => {
+  console.log('=========================================');
+  console.log(`🚀 KLB BACKEND RUNNING ON PORT: ${PORT}`);
+  console.log(`📡 CORS ORIGIN: ${process.env.DASHBOARD_URL || '*'}`);
+  console.log('=========================================');
+  console.log('⚠️ MongoDB is currently disabled for Convex migration.');
+}).on('error', (err: any) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ PORT ${PORT} IS ALREADY IN USE. PLEASE KILL THE PROCESS.`);
     process.exit(1);
-  });
+  } else {
+    console.error('❌ SERVER ERROR:', err);
+  }
+});
 
 // Routes Placeholder
 app.get('/health', (req, res) => {

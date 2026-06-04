@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { getSocket } from '@/utils/socket';
+import { useQuery, useMutation } from "convex/react";
 import QRModal from '@/components/QRModal';
 
 interface Session {
@@ -14,56 +14,22 @@ interface Session {
 }
 
 export default function SessionsListPage() {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(true);
+  const sessions = useQuery("sessions:getByOrg" as any, { organizationSlug: 'klb-connect' });
+  const deleteSessionMutation = useMutation("sessions:deleteSession" as any);
+  
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  useEffect(() => {
-    fetchSessions();
-    const socket = getSocket();
-
-    socket.on('whatsapp:status', (data: any) => {
-      setSessions(prev => prev.map(s => 
-        s.sessionId === data.sessionId ? { ...s, status: data.status } : s
-      ));
-    });
-
-    return () => {
-      socket.off('whatsapp:status');
-    };
-  }, []);
-
-  const fetchSessions = async () => {
-    try {
-      let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-
-      if (!backendUrl && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-        backendUrl = 'https://klb-chat-boot-production.up.railway.app';
-      }
-
-      backendUrl = backendUrl || 'http://localhost:4005';
-      const res = await fetch(`${backendUrl}/api/whatsapp/sessions/klb-connect`);
-      const data = await res.json();
-      setSessions(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Failed to fetch sessions:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const deleteSession = async (sessionId: string) => {
     if (!confirm('Are you sure you want to delete this session?')) return;
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4005'}/api/whatsapp/sessions/${sessionId}`, {
-        method: 'DELETE',
-      });
-      setSessions(prev => prev.filter(s => s.sessionId !== sessionId));
+      await deleteSessionMutation({ organizationSlug: 'klb-connect', sessionId });
     } catch (err) {
       alert('Delete failed');
     }
   };
+
+  const loading = sessions === undefined;
 
   return (
     <div className="animate-fade-in">
