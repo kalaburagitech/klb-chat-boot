@@ -85,7 +85,7 @@ export default function TemplatesPage() {
         </div>
       ) : (
         <div className="grid">
-          {templates.map(tpl => (
+          {templates?.map((tpl: any) => (
             <div key={tpl._id} className="card">
               <div className="card-header">
                 <div>

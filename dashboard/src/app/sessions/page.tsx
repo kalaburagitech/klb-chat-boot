@@ -43,7 +43,7 @@ export default function SessionsListPage() {
           <div style={{ textAlign: 'center', padding: '40px' }}>Loading sessions...</div>
         ) : (
           <div className="sessions-grid">
-            {sessions.map((session) => (
+            {sessions.map((session: any) => (
               <SessionListItem 
                 key={session._id} 
                 session={session} 

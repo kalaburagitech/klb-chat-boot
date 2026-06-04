@@ -56,7 +56,7 @@ export default function SchedulesPage() {
         </div>
       ) : (
         <div className="grid">
-          {schedules.map(schedule => (
+          {schedules?.map((schedule: any) => (
             <div key={schedule._id} className="card">
               <div className="card-header">
                 <h3 className="card-title">{schedule.name}</h3>

@@ -59,7 +59,7 @@ export default function RulesPage() {
               </tr>
             </thead>
             <tbody>
-              {rules.map(rule => (
+              {rules?.map((rule: any) => (
                 <tr key={rule._id}>
                   <td><strong>{rule.trigger}</strong></td>
                   <td><span className="badge badge-neutral">EXACT</span></td>

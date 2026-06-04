@@ -145,7 +145,7 @@ export default function DashboardPage() {
       )}
 
       <div className="stats-grid">
-        {stats.map((stat, i) => (
+        {stats.map((stat: any, i: number) => (
           <div key={i} className="glass-card stat-card">
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '8px' }}>{stat.label}</p>
             <h3 style={{ fontSize: '2rem', fontWeight: 700, color: stat.color }}>{stat.value}</h3>
@@ -163,7 +163,7 @@ export default function DashboardPage() {
           <div className="glass-card" style={{ padding: '40px', textAlign: 'center' }}>Loading sessions...</div>
         ) : (
           <div className="sessions-grid">
-            {sessions.map((session) => (
+            {sessions.map((session: any) => (
               <SessionCard 
                 key={session._id}
                 session={session}

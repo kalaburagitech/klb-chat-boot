@@ -140,7 +140,7 @@ export default function SessionDetailsPage({ params }: { params: Promise<{ id: s
         <div className="glass-card logs-card">
           <h3 style={{ marginBottom: '16px', fontWeight: 600 }}>Activity Logs</h3>
           <div className="logs-container">
-            {logs.length > 0 ? logs.map((log, i) => (
+            {logs.length > 0 ? logs.map((log: any, i: number) => (
               <div key={i} className="log-entry">
                 {log}
               </div>
