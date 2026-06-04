@@ -18,9 +18,19 @@ export const enqueueMessage = async (sessionId: string, to: string, content: str
           } else {
             media = MessageMedia.fromFilePath(options.mediaUrl);
           }
-          await client.sendMessage(to, media, { caption: content });
+          if (options.sendAsSticker) {
+             await client.sendMessage(to, media, { sendMediaAsSticker: true });
+          } else {
+             await client.sendMessage(to, media);
+          }
+          
+          if (content && content.trim().length > 0) {
+              await client.sendMessage(to, content);
+          }
         } catch (e) {
-          await client.sendMessage(to, content);
+          if (content && content.trim().length > 0) {
+              await client.sendMessage(to, content);
+          }
         }
     } else {
       await client.sendMessage(to, content, options);

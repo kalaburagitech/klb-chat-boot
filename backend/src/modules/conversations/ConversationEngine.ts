@@ -111,9 +111,20 @@ export class ConversationEngine {
       const template: any = await convexClient.query(api.chatbot.getTemplate, { templateId: rule.response });
       if (template) {
          let content = template.content;
-         // Replace {{1}} with a generic "there" since we don't have user's name yet
          content = content.replace(/\{\{1\}\}/g, 'there');
-         return enqueueMessage(state.sessionId, state.phoneNumber, content);
+
+         // Extract image URL to send as Header Image
+         const urlRegex = /(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif)|https:\/\/github\.com\/[^\s]+\/assets\/[^\s]+)/i;
+         const match = content.match(urlRegex);
+         
+         let mediaUrl = undefined;
+         if (match) {
+             mediaUrl = match[0];
+             // Remove the URL and "Logo:" label from the text so it doesn't look messy in the caption
+             content = content.replace(mediaUrl, '').replace(/Logo:\s*/i, '').trim();
+         }
+
+         return enqueueMessage(state.sessionId, state.phoneNumber, content, { mediaUrl, sendAsSticker: true });
       } else {
          return enqueueMessage(state.sessionId, state.phoneNumber, 'Template not found.');
       }
@@ -159,7 +170,19 @@ export class ConversationEngine {
     } else if (option.action === 'SEND_TEMPLATE' && option.targetId) {
        const template: any = await convexClient.query(api.chatbot.getTemplate, { templateId: option.targetId });
        if (template) {
-         return enqueueMessage(state.sessionId, state.phoneNumber, template.content); // We will add variable parsing later
+         let content = template.content;
+         content = content.replace(/\{\{1\}\}/g, 'there');
+
+         const urlRegex = /(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif)|https:\/\/github\.com\/[^\s]+\/assets\/[^\s]+)/i;
+         const match = content.match(urlRegex);
+         
+         let mediaUrl = undefined;
+         if (match) {
+             mediaUrl = match[0];
+             content = content.replace(mediaUrl, '').replace(/Logo:\s*/i, '').trim();
+         }
+
+         return enqueueMessage(state.sessionId, state.phoneNumber, content, { mediaUrl, sendAsSticker: true });
        }
     }
   }
