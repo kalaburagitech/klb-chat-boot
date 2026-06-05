@@ -28,6 +28,7 @@ export const enqueueMessage = async (sessionId: string, to: string, content: str
               await client.sendMessage(to, content);
           }
         } catch (e) {
+          console.error("❌ FAILED TO SEND MEDIA OR STICKER:", e);
           if (content && content.trim().length > 0) {
               await client.sendMessage(to, content);
           }
